@@ -35,6 +35,7 @@ namespace Monkey
 {
  
  class Element;
+ struct ElementStyle;
  class PuzzleTree;
 
  class PuzzleTree
@@ -42,23 +43,35 @@ namespace Monkey
    
   public:
    
-   PuzzleTree(const std::string& monkey_css);
-   
-   PuzzleTree(const std::string& monkey_css, Gorilla::Silverback*);
+   // PuzzleTree constructor. 
+   // Note: If Gorilla's Silverback hasn't been created, PuzzleTree will create it.
+   PuzzleTree(const Ogre::String& monkey_css, Ogre::Viewport*);
    
   ~PuzzleTree();
    
-   void createElement(const std::string& css_id_or_classes, unsigned int top, unsigned int left);
+   void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left);
    
-   void createElement(const std::string& css_id_or_classes, unsigned int top, unsigned int left, unsigned int implicitWidth, unsigned int implicitHeight);
+   void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int implicitWidth, unsigned int implicitHeight);
    
    void destroyElement(Element*);
    
-   void destroyElement(const std::string& css_id);
+   void destroyElement(const Ogre::String& css_id);
    
+   void loadCSS(const Ogre::String& monkey_css);
+   
+   Gorilla::Silverback*  getSilverback() const { return mSilverback; }
+
+  protected:
+   
+   std::map<Ogre::String, ElementStyle*>      mStyles;
+   Gorilla::Silverback*                       mSilverback;
+   Gorilla::Screen*                           mScreen;
+   Ogre::Viewport*                            mViewport;
+   Gorilla::Layer*                            mLayers[16];
+   Ogre::String                               mAtlas;
  };
  
-  struct ElementProperty
+  struct ElementStyle
   {
    struct Background
    {
@@ -80,14 +93,14 @@ namespace Monkey
     Ogre::ColourValue top, left, right, bottom;
    } border;
    float opacity;
-   void to_css(Ogre::String&)
+   void to_css(Ogre::String&);
    void from_css(const Ogre::String&);
-   void merge(ElementProperty&);
+   void merge(ElementStyle&);
   };
 
   class Element
   {
-   ElementProperty mLook;
+   ElementStyle mLook;
   };
 }
 

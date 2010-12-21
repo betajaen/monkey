@@ -1,6 +1,4 @@
-/*
-	This is a comment.
-*/
+// test
 
 @import ("rendezous.gorilla");
 

@@ -18,7 +18,7 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    _makeOgre();
    _makeOIS();
    
-   mTree = new Monkey::PuzzleTree("rendezvous.css");
+   mTree = new Monkey::PuzzleTree("rendezvous.css", mViewport);
    
   }
   
