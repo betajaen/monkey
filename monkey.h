@@ -52,9 +52,7 @@ namespace Monkey
 
   ~PuzzleTree();
    
-   void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left);
-   
-   void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int implicitWidth, unsigned int implicitHeight);
+   void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int width, unsigned int height);
    
    void destroyElement(Element*);
    
@@ -83,7 +81,7 @@ namespace Monkey
     enum BackgroundType { BT_Transparent, BT_Colour, BT_Sprite };
     BackgroundType type;
     Ogre::ColourValue colour;
-    Gorilla::Sprite*  sprite; Ogre::String sprite_name;
+    Ogre::String sprite;
    } background;
    Ogre::ColourValue colour;
    size_t font;
@@ -105,7 +103,33 @@ namespace Monkey
 
   class Element
   {
-   ElementStyle mLook;
+    
+   public:
+    
+    Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h);
+    
+   ~Element();
+    
+    void setTop(unsigned int top);
+    void setLeft(unsigned int left);
+    void setWidth(unsigned int width);
+    void setHeight(unsigned int height);
+    void setText(const Ogre::String& text);
+    
+    unsigned int getTop() const;
+    unsigned int getLeft() const;
+    unsigned int getWidth() const;
+    unsigned int getHeight() const;
+    unsigned int getText() const;
+
+   protected:
+    Ogre::String              mName;
+    std::vector<Ogre::String> mStyles;
+    ElementStyle              mLook;
+    Gorilla::Caption*         mCaption;
+    Gorilla::Rectangle*       mRectangle;
+    Ogre::String              mText;
+    bool                      mIsRectangle;
   };
 }
 

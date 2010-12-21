@@ -387,6 +387,29 @@ bool split(const String& str, std::map<String, String>& value, char delimiter, b
  return true;
 }
 
+Ogre::ColourValue getCSSRGBAColour(const Ogre::String& value)
+{
+ 
+ Ogre::String working;
+ slice_after_first_of(working, '(');
+ slice_to_last_of(working, ')');
+ Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(working, ",", 4);
+ // split into four.
+ Ogre::ColourValue colour = Ogre::ColourValue::White;
+ for (size_t i=0;i < strs.size();i++)
+ {
+  trim(strs[i]);
+  colour[i] = float(Ogre::StringConverter::parseInt(strs[i])) * (1.0f / 255.0f);
+ }
+ return colour;
+}
+
+Ogre::String toCSSRGBAColour(const Ogre::ColourValue& colour)
+{
+ std::stringstream s;
+ s << "RGBA(" << int(colour.r * 255.0f) << ", " << int(colour.g * 255.0f) << ", " << int(colour.b * 255.0f) << ", " << int(colour.a * 255.0f) << ")";
+ return s.str();
+}
 
 } // namespace SecretMonkey
 
@@ -513,7 +536,7 @@ void PuzzleTree::dumpCSS()
  {
   Ogre::String css;
   (*it).second->to_css(css);
-  std::cout << (*it).first << "\n{\n" << css << "\n}\n";
+  std::cout << (*it).first << "\n{\n" << css << "}\n";
  }
 }
 
@@ -522,20 +545,24 @@ void ElementStyle::reset()
  alignment.horz = Gorilla::TextAlign_Left;
  alignment.vert = Gorilla::VerticalAlign_Top;
  background.colour = Ogre::ColourValue::White;
- background.sprite = 0;
+ background.sprite.clear();
  background.type = Background::BT_Transparent;
  colour = Ogre::ColourValue::White;
  font = 9;
+ border.width = 0;
+ border.top = Ogre::ColourValue::White;
+ border.right= Ogre::ColourValue::White;
+ border.bottom = Ogre::ColourValue::White;
+ border.left = Ogre::ColourValue::White;
 }
 
 void ElementStyle::to_css(Ogre::String& css)
 {
+ namespace S = ::Monkey::SecretMonkey;
  std::stringstream s;
  
  s << "text-align: ";
- if (alignment.horz == Gorilla::TextAlign_Left)
-  s << " left;\n";
- else if (alignment.horz == Gorilla::TextAlign_Right)
+ if (alignment.horz == Gorilla::TextAlign_Right)
   s << " right;\n";
  else if (alignment.horz == Gorilla::TextAlign_Centre)
   s << " center;\n";
@@ -548,14 +575,22 @@ void ElementStyle::to_css(Ogre::String& css)
  else if (alignment.vert == Gorilla::VerticalAlign_Middle)
   s << " middle;\n";
  
+ 
+  s << "border-width: " << border.width << ";\n";
+  s << "border-top: " << S::toCSSRGBAColour(border.top)  << ";\n";
+  s << "border-right: " << S::toCSSRGBAColour(border.right)  << ";\n";
+  s << "border-bottom: " << S::toCSSRGBAColour(border.bottom)  << ";\n";
+  s << "border-left: " << S::toCSSRGBAColour(border.left)  << ";\n";
+ 
+
  if (background.type == Background::BT_Transparent)
   s << "background: none;\n";
  else if (background.type == Background::BT_Sprite)
-  s << "background-image: " << background.sprite_name << ";\n";
+  s << "background-image: " << background.sprite << ";\n";
  else if (background.type == Background::BT_Colour)
-  s << "background-colour: RGBA(" << int(background.colour.r * 255.0f) << ", " << int(background.colour.g * 255.0f) << ", " << int(background.colour.b * 255.0f) << ", " << int(background.colour.a * 255.0f) << ");\n";
+  s << "background-colour: " << S::toCSSRGBAColour(background.colour) << ";\n";
  
- s << "colour: RGBA(" << int(colour.r * 255.0f) << ", " << int(colour.g * 255.0f) << ", " << int(colour.b * 255.0f) << ", " << int(colour.a * 255.0f) << ");\n";
+ s << "colour: " << S::toCSSRGBAColour(colour) << ";\n";
  
  s << "font: " << font << ";\n";
 
@@ -593,6 +628,41 @@ void ElementStyle::from_css(const Ogre::String& key, const Ogre::String& value)
  {
   font = Ogre::StringConverter::parseInt(working);
  }
+ else if (key == "border")
+ {
+  // <size> <all-colours>
+   Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(working, " ", 2);
+   if (strs.size() == 1)
+   {
+    border.width = Ogre::StringConverter::parseInt(strs[0]);
+   }
+   else if (strs.size() == 2)
+   {
+    border.width = Ogre::StringConverter::parseInt(strs[0]);
+    Ogre::ColourValue col;
+    border.top = border.left = border.bottom = border.right = S::getCSSRGBAColour(strs[1]);
+   }
+ }
+ else if (key == "border-width")
+ {
+  border.width = Ogre::StringConverter::parseInt(working);
+ }
+ else if (key == "border-top")
+ {
+  border.top = S::getCSSRGBAColour(working);
+ }
+ else if (key == "border-right")
+ {
+  border.right = S::getCSSRGBAColour(working);
+ }
+ else if (key == "border-bottom")
+ {
+  border.bottom = S::getCSSRGBAColour(working);
+ }
+ else if (key == "border-left")
+ {
+  border.left = S::getCSSRGBAColour(working);
+ }
  else if (key == "background")
  {
   if (S::matches_insensitive(working, "none"))
@@ -603,45 +673,50 @@ void ElementStyle::from_css(const Ogre::String& key, const Ogre::String& value)
  else if (key == "background-image")
  {
   background.type = Background::BT_Sprite;
-  background.sprite_name = working;
-  background.sprite = 0;
+  background.sprite = working;
  }
  else if (key == "background-colour")
  {
   if (S::starts_insensitive(working, "rgb"))
   {
-   S::slice_after_first_of(working, '(');
-   S::slice_to_last_of(working, ')');
-   Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(working, ",", 4);
-   // split into four.
-   background.colour = Ogre::ColourValue::White;
-   for (size_t i=0;i < strs.size();i++)
-   {
-    S::trim(strs[i]);
-    background.colour[i] = float(Ogre::StringConverter::parseInt(strs[i])) * (1.0f / 255.0f);
-   }
+   colour = S::getCSSRGBAColour(working);
   }
  }
  else if (key == "colour")
  {
   if (S::starts_insensitive(working, "rgb"))
   {
-   S::slice_after_first_of(working, '(');
-   S::slice_to_last_of(working, ')');
-   Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(working, ",", 4);
-   // split into four.
-   colour = Ogre::ColourValue::White;
-   for (size_t i=0;i < strs.size();i++)
-   {
-    S::trim(strs[i]);
-    colour[i] = float(Ogre::StringConverter::parseInt(strs[i])) * (1.0f / 255.0f);
-   }
+   colour = S::getCSSRGBAColour(working);
   }
  }
 }
 
-void ElementStyle::merge(ElementStyle&)
+void ElementStyle::merge(ElementStyle& other)
 {
+ if (alignment.horz != other.alignment.horz)
+  other.alignment.horz = alignment.horz;
+ if (alignment.vert != other.alignment.vert)
+  other.alignment.vert = alignment.vert;
+ if (background.type != other.background.type)
+ {
+  other.background.type = background.type;
+  other.background.colour = background.colour;
+  other.background.sprite = background.sprite;
+ }
+ if (border.width != other.border.width)
+  other.border.width = border.width;
+ if (border.top != other.border.top)
+  other.border.top = border.top;
+ if (border.left != other.border.left)
+  other.border.left = border.left;
+ if (border.right != other.border.right)
+  other.border.right = border.right;
+ if (border.bottom != other.border.bottom)
+  other.border.bottom = border.bottom;
+ if (colour != other.colour)
+  other.colour = colour;
+ if (font != other.font)
+  other.font = font;
 }
 
 } // namespace Monkey
