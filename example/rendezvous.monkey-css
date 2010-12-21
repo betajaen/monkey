@@ -10,13 +10,14 @@ mouse
 
 finger
 {
-	z-index: 15;
-	background-image: "finger"
-	opacity: 0.8
+	z-index:15;
+	background-image: "finger";	opacity:  0.8;
 }
+
+inline { cake1:2; cake2: cake3; cake4: 6; }
 
 #test
 {
-	background-color: pink;
+	background-color: pink;		// It's Pink! 
 
 }

@@ -47,6 +47,9 @@ namespace Monkey
    // Note: If Gorilla's Silverback hasn't been created, PuzzleTree will create it.
    PuzzleTree(const Ogre::String& monkey_css, Ogre::Viewport*);
    
+      PuzzleTree() {} // temp.
+   
+
   ~PuzzleTree();
    
    void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left);
@@ -60,6 +63,8 @@ namespace Monkey
    void loadCSS(const Ogre::String& monkey_css);
    
    Gorilla::Silverback*  getSilverback() const { return mSilverback; }
+
+   void dumpCSS();
 
   protected:
    
@@ -78,7 +83,7 @@ namespace Monkey
     enum BackgroundType { BT_Transparent, BT_Colour, BT_Sprite };
     BackgroundType type;
     Ogre::ColourValue colour;
-    Gorilla::Sprite*  sprite;
+    Gorilla::Sprite*  sprite; Ogre::String sprite_name;
    } background;
    Ogre::ColourValue colour;
    size_t font;
@@ -92,9 +97,9 @@ namespace Monkey
     size_t width;
     Ogre::ColourValue top, left, right, bottom;
    } border;
-   float opacity;
+   void reset();
    void to_css(Ogre::String&);
-   void from_css(const Ogre::String&);
+   void from_css(const Ogre::String& key, const Ogre::String& value);
    void merge(ElementStyle&);
   };
 

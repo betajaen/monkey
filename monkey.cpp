@@ -113,6 +113,13 @@ static const String newlines = "\r\n";
   if (pos != String::npos)
    string.assign(string.substr(0, pos));
  }
+ 
+ void slice_to_first_of(String& string, String& pattern)
+ {
+  size_t pos = string.find_first_of(pattern);
+  if (pos != String::npos)
+   string.assign(string.substr(0, pos));
+ }
 
  void slice_to_last_of(String& string, char pattern)
  {
@@ -198,13 +205,13 @@ static const String newlines = "\r\n";
   if (working.length() == 0)
    return StringPair(String(), String());
  
-  if (index(working, ':') == std::string::npos)
+  if (index(working, delimiter) == std::string::npos)
    return StringPair(String(), String());
 
   std::string first(working);
-  slice_to_first_of(first, ':');
+  slice_to_first_of(first, delimiter);
   std::string second(working);
-  slice_after_first_of(second, ':');
+  slice_after_first_of(second, delimiter);
  
   trim(first);
   trim(second);
@@ -237,13 +244,13 @@ static const String newlines = "\r\n";
   if (working.length() == 0)
    continue;
   
-  if (index(working, ':') == std::string::npos)
+  if (index(working, delimiter) == std::string::npos)
    continue;
   
   std::string first(working);
-  slice_to_first_of(first, ':');
+  slice_to_first_of(first, delimiter);
   std::string second(working);
-  slice_after_first_of(second, ':');
+  slice_after_first_of(second, delimiter);
   
   trim(first);
   trim(second);
@@ -409,14 +416,232 @@ PuzzleTree::~PuzzleTree()
 
 void PuzzleTree::loadCSS(const Ogre::String& css_file_name_path)
 {
+ namespace S = ::Monkey::SecretMonkey;
+
+ S::StringPair sp;
+ bool didCut = false;
+ sp = S::cut(css_file_name_path, didCut, ':', 0);
+
+ Ogre::DataStreamPtr stream;
+ if (didCut)
+  stream = Ogre::ResourceGroupManager::getSingleton().openResource(sp.second, sp.first);
+ else
+  stream = Ogre::ResourceGroupManager::getSingleton().openResource(css_file_name_path, Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
  
- Ogre::String css_file_name, css_file_group;
- 
- 
- Ogre::DataStreamPtr css_stream = Ogre::ResourceGroupManager::getSingleton().openResource(css_file_name, css_file_group);
- 
- 
+ Ogre::String line, element_name;
+ Ogre::vector<Ogre::String>::type workings;
+ bool inElement = false;
+ ElementStyle* style = 0;
+ while (!stream->eof())
+ {
+  line = stream->getLine();
+  S::trim(line);
+  if (line.length() == 0)
+   continue;
+  if (S::starts(line, "//"))
+   continue;
+  S::slice_to_first_of(line, Ogre::String("//"));
+  
+  if (inElement == false && S::starts(line, "@import"))
+  {
+   S::slice_after_first_of(line, '"');
+   S::slice_after_first_of(line, '\'');
+   S::slice_to_last_of(line, '"');
+   S::slice_to_last_of(line, '\'');
+   S::trim(line);
+   mAtlas = line;
+   element_name.clear();
+   continue;
+  }
+
+  if (inElement == false)
+  {
+   size_t bracket = S::index(line, '{');
+   if (bracket != std::string::npos)
+   {
+    std::string t = line;
+    S::slice_to_first_of(t, '{');
+    element_name.append(t);
+    S::trim(element_name);
+    S::slice_after_first_of(line, '{');
+    style = new ElementStyle();
+    mStyles[element_name] = style;
+    style->reset();
+    inElement = true;
+   }
+   else
+   {
+    element_name = line;
+    continue;
+   }
+  }
+
+  // In Element
+
+  std::string working = line;
+  S::slice_to_first_of(working, '}');
+
+  // Parse CSS from working here.
+  S::trim(working);
+
+  workings = Ogre::StringUtil::split(working, ";");
+
+  for (size_t i=0;i < workings.size();i++)
+  {
+   S::trim(workings[i]);
+   if (workings[i].length() == 0)
+    continue;
+   
+   sp = S::cut(workings[i], didCut, ':', 0);
+   S::lower(sp.first);
+   style->from_css(sp.first, sp.second);
+  }
+  
+  if (S::index(line, '}') != std::string::npos)
+  {
+   inElement = false;
+   element_name.clear();
+  }
+
+ }
+
 }
 
+void PuzzleTree::dumpCSS()
+{
+ for (std::map<Ogre::String, ElementStyle*>::iterator it = mStyles.begin(); it != mStyles.end(); it++)
+ {
+  Ogre::String css;
+  (*it).second->to_css(css);
+  std::cout << (*it).first << "\n{\n" << css << "\n}\n";
+ }
+}
+
+void ElementStyle::reset()
+{
+ alignment.horz = Gorilla::TextAlign_Left;
+ alignment.vert = Gorilla::VerticalAlign_Top;
+ background.colour = Ogre::ColourValue::White;
+ background.sprite = 0;
+ background.type = Background::BT_Transparent;
+ colour = Ogre::ColourValue::White;
+ font = 9;
+}
+
+void ElementStyle::to_css(Ogre::String& css)
+{
+ std::stringstream s;
+ 
+ s << "text-align: ";
+ if (alignment.horz == Gorilla::TextAlign_Left)
+  s << " left;\n";
+ else if (alignment.horz == Gorilla::TextAlign_Right)
+  s << " right;\n";
+ else if (alignment.horz == Gorilla::TextAlign_Centre)
+  s << " center;\n";
+ 
+ s << "vertical-align: ";
+ if (alignment.vert == Gorilla::VerticalAlign_Top)
+  s << " top;\n";
+ else if (alignment.vert == Gorilla::VerticalAlign_Bottom)
+  s << " bottom;\n";
+ else if (alignment.vert == Gorilla::VerticalAlign_Middle)
+  s << " middle;\n";
+ 
+ if (background.type == Background::BT_Transparent)
+  s << "background: none;\n";
+ else if (background.type == Background::BT_Sprite)
+  s << "background-image: " << background.sprite_name << ";\n";
+ else if (background.type == Background::BT_Colour)
+  s << "background-colour: RGBA(" << int(background.colour.r * 255.0f) << ", " << int(background.colour.g * 255.0f) << ", " << int(background.colour.b * 255.0f) << ", " << int(background.colour.a * 255.0f) << ");\n";
+ 
+ s << "colour: RGBA(" << int(colour.r * 255.0f) << ", " << int(colour.g * 255.0f) << ", " << int(colour.b * 255.0f) << ", " << int(colour.a * 255.0f) << ");\n";
+ 
+ s << "font: " << font << ";\n";
+
+ css.assign(s.str());
+}
+
+void ElementStyle::from_css(const Ogre::String& key, const Ogre::String& value)
+{
+ 
+ namespace S = ::Monkey::SecretMonkey;
+ Ogre::String working(value);
+ S::trim(working);
+ 
+ if (key == "text-align")
+ {
+  if (S::matches_insensitive(working, "left"))
+   alignment.horz = Gorilla::TextAlign_Left;
+  else if (S::matches_insensitive(working, "center"))
+   alignment.horz = Gorilla::TextAlign_Centre;
+  else if (S::matches_insensitive(working, "centre"))
+   alignment.horz = Gorilla::TextAlign_Centre;
+  else if (S::matches_insensitive(working, "right"))
+   alignment.horz = Gorilla::TextAlign_Right;
+ }
+ else if (key == "vertical-align")
+ {
+  if (S::matches_insensitive(working, "top"))
+   alignment.vert = Gorilla::VerticalAlign_Top;
+  else if (S::matches_insensitive(working, "middle"))
+   alignment.vert = Gorilla::VerticalAlign_Middle;
+  else if (S::matches_insensitive(working, "bottom"))
+   alignment.vert = Gorilla::VerticalAlign_Bottom;
+ }
+ else if (key == "font")
+ {
+  font = Ogre::StringConverter::parseInt(working);
+ }
+ else if (key == "background")
+ {
+  if (S::matches_insensitive(working, "none"))
+   background.type = Background::BT_Transparent;
+  else if (S::matches_insensitive(working, "transparent"))
+   background.type = Background::BT_Transparent;
+ }
+ else if (key == "background-image")
+ {
+  background.type = Background::BT_Sprite;
+  background.sprite_name = working;
+  background.sprite = 0;
+ }
+ else if (key == "background-colour")
+ {
+  if (S::starts_insensitive(working, "rgb"))
+  {
+   S::slice_after_first_of(working, '(');
+   S::slice_to_last_of(working, ')');
+   Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(working, ",", 4);
+   // split into four.
+   background.colour = Ogre::ColourValue::White;
+   for (size_t i=0;i < strs.size();i++)
+   {
+    S::trim(strs[i]);
+    background.colour[i] = float(Ogre::StringConverter::parseInt(strs[i])) * (1.0f / 255.0f);
+   }
+  }
+ }
+ else if (key == "colour")
+ {
+  if (S::starts_insensitive(working, "rgb"))
+  {
+   S::slice_after_first_of(working, '(');
+   S::slice_to_last_of(working, ')');
+   Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(working, ",", 4);
+   // split into four.
+   colour = Ogre::ColourValue::White;
+   for (size_t i=0;i < strs.size();i++)
+   {
+    S::trim(strs[i]);
+    colour[i] = float(Ogre::StringConverter::parseInt(strs[i])) * (1.0f / 255.0f);
+   }
+  }
+ }
+}
+
+void ElementStyle::merge(ElementStyle&)
+{
+}
 
 } // namespace Monkey
