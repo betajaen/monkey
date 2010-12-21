@@ -1,0 +1,17 @@
+/*
+	This is a comment.
+*/
+
+mouse
+{
+	index: 15;
+	sprite: "mousepointer";
+}
+
+finger
+{
+	index: 15;
+	sprite: "finger"
+	alpha: 0.5
+}
+
