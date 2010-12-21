@@ -12,14 +12,19 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
   
   Monkey::PuzzleTree* mTree;
   
-  App()
+  App() : mTree(0)
   {
    
    _makeOgre();
    _makeOIS();
    
-   mTree = new Monkey::PuzzleTree("rendezvous.css", mViewport);
-   
+   mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport);
+   Monkey::Element* test = mTree->createElement("#test green", 100, 100, 300, 300);
+   test->setText("Some text.");
+
+   Gorilla::Silverback* sb = Gorilla::Silverback::getSingletonPtr();
+   Gorilla::Screen* screen = sb->createScreen(mViewport, "rendezvous");
+   screen->createLayer(0)->createCaption(9, 14,14, "Gorilla");
   }
   
  ~App()
@@ -135,9 +140,18 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
 
 void main()
 {
- App* app = new App();
- app->mRoot->startRendering();
- delete app;
+ 
+ try
+ {
+  App* app = new App();
+  app->mRoot->startRendering();
+  delete app;
+ }
+ catch(Ogre::Exception& e)
+ {
+  std::cout << "--------\n" << e.getFullDescription() << "\n\n";
+ }
+ 
 }
 
 

@@ -1,6 +1,6 @@
 // test
 
-@import ("rendezous.gorilla");
+@import ("rendezvous");
 
 mouse
 {
@@ -14,10 +14,15 @@ finger
 	background-image: "finger";	opacity:  0.8;
 }
 
-inline { cake1:2; cake2: cake3; cake4: 6; }
-
 #test
 {
-	background-color: pink;		// It's Pink! 
+	font: 24;
+	background-color: RGBA(115, 194, 251, 255);
+	border: 8 RGBA(0, 128, 0, 150);
+}
 
+.green
+{
+	background-color: RGBA(0,100,0,255);
+	font: 14;
 }

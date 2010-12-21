@@ -52,7 +52,7 @@ namespace Monkey
 
   ~PuzzleTree();
    
-   void createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int width, unsigned int height);
+   Element* createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int width, unsigned int height);
    
    void destroyElement(Element*);
    
@@ -64,8 +64,18 @@ namespace Monkey
 
    void dumpCSS();
 
+   ElementStyle* getStyle(const Ogre::String& name)
+   {
+    std::map<Ogre::String, ElementStyle*>::iterator it = mStyles.find(name);
+    if (it == mStyles.end())
+     return 0;
+    return (*it).second;
+   }
+   
+   
   protected:
    
+   std::multimap<Ogre::String, Element*>      mElements;
    std::map<Ogre::String, ElementStyle*>      mStyles;
    Gorilla::Silverback*                       mSilverback;
    Gorilla::Screen*                           mScreen;
@@ -82,18 +92,25 @@ namespace Monkey
     BackgroundType type;
     Ogre::ColourValue colour;
     Ogre::String sprite;
+    bool set;
    } background;
    Ogre::ColourValue colour;
+   bool colour_set;
    size_t font;
+   bool font_set;
    struct TextAligment
    {
     Gorilla::TextAlignment horz;
     Gorilla::VerticalAlignment vert;
+    bool horz_set;
+    bool vert_set;
    } alignment;
    struct Border
    {
     size_t width;
+    bool width_set;
     Ogre::ColourValue top, left, right, bottom;
+    bool top_set, left_set, right_set, bottom_set;
    } border;
    void reset();
    void to_css(Ogre::String&);
@@ -106,31 +123,38 @@ namespace Monkey
     
    public:
     
-    Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h);
+    Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer*, PuzzleTree*);
     
    ~Element();
     
-    void setTop(unsigned int top);
-    void setLeft(unsigned int left);
-    void setWidth(unsigned int width);
-    void setHeight(unsigned int height);
-    void setText(const Ogre::String& text);
+    void setTop(unsigned int top)   { mY = top; reapplyLook(); }
+    void setLeft(unsigned int left)   { mX = left; reapplyLook(); }
+    void setWidth(unsigned int width)   { mWidth = width; reapplyLook(); }
+    void setHeight(unsigned int height)   { mHeight = height; reapplyLook(); }
+    void setText(const Ogre::String& text)   { mText = text; reapplyLook(); }
     
-    unsigned int getTop() const;
-    unsigned int getLeft() const;
-    unsigned int getWidth() const;
-    unsigned int getHeight() const;
-    unsigned int getText() const;
-
+    Ogre::String getID() const { return mID; }
+    unsigned int getTop() const { return mY; }
+    unsigned int getLeft() const { return mX; }
+    unsigned int getWidth() const { return mWidth; }
+    unsigned int getHeight() const { return mHeight; }
+    Ogre::String getText() const { return mText; }
+    
+   void reapplyLook();
    protected:
-    Ogre::String              mName;
+
+    PuzzleTree*               mParent;
+    Ogre::String              mID;
     std::vector<Ogre::String> mStyles;
     ElementStyle              mLook;
     Gorilla::Caption*         mCaption;
     Gorilla::Rectangle*       mRectangle;
     Ogre::String              mText;
-    bool                      mIsRectangle;
+    Gorilla::Layer*           mLayer;
+
+    unsigned int              mX, mY, mWidth, mHeight;
   };
+  
 }
 
 #endif
