@@ -2,16 +2,23 @@
 	This is a comment.
 */
 
+@import ("rendezous.gorilla");
+
 mouse
 {
-	index: 15;
-	sprite: "mousepointer";
+	z-index: 15;
+	background-image: "mousepointer";
 }
 
 finger
 {
-	index: 15;
-	sprite: "finger"
-	alpha: 0.5
+	z-index: 15;
+	background-image: "finger"
+	opacity: 0.8
 }
 
+#test
+{
+	background-color: pink;
+
+}
