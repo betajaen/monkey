@@ -20,12 +20,12 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    
    mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport);
    Monkey::Element* test = mTree->createElement("#test notgreen needabiggerboat", 30, 30, 320, 100);
-   test->setText("Hello Monkey!");
+   test->setText("Big Monkey!");
    
-   Monkey::Element* immonkey = test->createChild("notblue", 1,1, 20,20);
-   immonkey->setText("I'm Monkey!");
+   Monkey::Element* immonkey = test->createChild("notblue", 1,1, 500,20);
+   immonkey->setText("I'm Child of big parent monkey!");
    
-   immonkey->createChild("notblue", 1,1, 10,10);
+   immonkey->createChild("coco", 190, 1, 50,50);
   }
   
  ~App()

@@ -13,6 +13,7 @@ mouse
 	background-color: RGBA(115, 194, 251, 255);
 	border: 8 RGBA(163, 193, 173, 255);
 	vertical-align: middle;
+	text-align: center;
 }
 
 #test:child
@@ -21,7 +22,7 @@ mouse
 	vertical-align: top;
 	color: RGBA(0,0,255,255);
 	border: 0;
-	background-color: RGB(255,0,255,255);
+	background-color: RGB(255,255,255);
 }
 
 .white
@@ -29,9 +30,9 @@ mouse
 	background-color: RGBA(255,255,255,255)
 }
 
-.notblue
+.coco
 {
-	background-color: RGBA(0,0,255,255);
+	background-image: coco;
 }
 
 .notgreen

@@ -153,7 +153,7 @@ namespace Monkey
      else
       return mX;
     }
-    
+    bool hasLimits() const { return mHasLimits; }
     unsigned int getWidth() const { return mWidth; }
     unsigned int getHeight() const { return mHeight; }
     Ogre::String getText() const { return mText; }
@@ -176,6 +176,7 @@ namespace Monkey
     Gorilla::Layer*           mLayer;
     size_t                    mIndex;
     unsigned int              mX, mY, mWidth, mHeight;
+    bool                      mHasLimits;
   };
   
 }

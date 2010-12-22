@@ -815,7 +815,7 @@ void ElementStyle::merge(ElementStyle& other)
 
 
 Element::Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index)
-: mTree(tree), mParent(parent), mLayer(layer), mRectangle(0), mCaption(0), mX(x), mY(y), mWidth(w), mHeight(h), mIndex(index)
+: mTree(tree), mParent(parent), mLayer(layer), mRectangle(0), mCaption(0), mX(x), mY(y), mWidth(w), mHeight(h), mIndex(index), mHasLimits(false)
 {
  
  mLook.reset();
@@ -888,28 +888,46 @@ void Element::destroyChild(Element*)
 void Element::reapplyLook()
 {
  
- unsigned int x = mX ,y = mY, w = mWidth, h = mHeight;
-
+ int x = mX ,y = mY, w = mWidth, h = mHeight;
+ bool widthReduced = false, heightReduced = false;
+ 
  if (mParent)
  {
   x += mParent->getLeft();
   y += mParent->getTop();
   
-  // If there is a background/border, obey the width/height to that.
-  if (mLook.background.type != ElementStyle::Background::BT_Transparent || mLook.border.width != 0)
+  if (mParent->hasLimits())
   {
-   if (x + w > mParent->getLeft() + mParent->getWidth())
-    w -= (x + w) - (mParent->getLeft() + mParent->getWidth());
-   if (y + h > mParent->getTop() + mParent->getHeight())
-    h -= (y + h) - (mParent->getTop() + mParent->getHeight());
-  }
-  else
-  {
-   w = mParent->getWidth() - mX;
-   h = mParent->getHeight() - mY;
-  }
- }
- 
+   if (x > mParent->getLeft() + mParent->getWidth() || y > mParent->getTop() + mParent->getHeight())
+   {
+    if (mRectangle)
+    {
+     mLayer->destroyRectangle(mRectangle);
+     mRectangle = 0;
+    }
+    if (mCaption)
+    {
+     mLayer->destroyCaption(mCaption);
+     mCaption = 0;
+    }
+    return;
+   }
+   
+   int maxW = mParent->getWidth() - mX,
+       maxH = mParent->getHeight() - mY;
+   if (w > maxW)
+   {
+    w = maxW;
+    widthReduced = true;
+   }
+   if (h > maxH)
+   {
+    h = maxH;
+    heightReduced = true;
+   }
+  } // if limits
+ } // if parent
+  
  if (mText.length() != 0)
  {
   if (mCaption == 0)
@@ -944,17 +962,28 @@ void Element::reapplyLook()
  
  if (mLook.background.type != ElementStyle::Background::BT_Transparent || mLook.border.width != 0)
  {
-  
+  mHasLimits = true;
   if (mRectangle == 0)
    mRectangle = mLayer->createRectangle(x, y, w, h);
   
   if (mLook.background.type == ElementStyle::Background::BT_Colour)
    mRectangle->background_colour(mLook.background.colour);
   else if (mLook.background.type == ElementStyle::Background::BT_Sprite)
-   mRectangle->background_image(mLook.background.sprite);
+  {
+   if (widthReduced || heightReduced)
+   {
+    Ogre::Real sx = float(w) / float(mWidth);
+    Ogre::Real sy = float(h) / float(mHeight);
+    mRectangle->background_image(mLook.background.sprite, sx, sy);
+   }
+   else
+   {
+    mRectangle->background_image(mLook.background.sprite);
+   }
+  }
   else
    mRectangle->no_background();
-
+  
   if (mLook.border.width == 0)
    mRectangle->no_border();
   else
@@ -966,6 +995,7 @@ void Element::reapplyLook()
  }
  else
  {
+  mHasLimits = false;
   if (mRectangle)
   {
    mLayer->destroyRectangle(mRectangle);
