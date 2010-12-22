@@ -19,12 +19,9 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    _makeOIS();
    
    mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport);
-   Monkey::Element* test = mTree->createElement("#test green", 100, 100, 300, 300);
-   test->setText("Some text.");
+   Monkey::Element* test = mTree->createElement("#test notgreen needabiggerboat", 30, 30, 320, 100);
+   test->setText("Hello Monkey!");
 
-   Gorilla::Silverback* sb = Gorilla::Silverback::getSingletonPtr();
-   Gorilla::Screen* screen = sb->createScreen(mViewport, "rendezvous");
-   screen->createLayer(0)->createCaption(9, 14,14, "Gorilla");
   }
   
  ~App()
@@ -93,7 +90,7 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
 #endif
    
    mRoot->setRenderSystem(mRoot->getAvailableRenderers()[0]);
-   
+    
    Ogre::ResourceGroupManager* rgm = Ogre::ResourceGroupManager::getSingletonPtr();
    rgm->addResourceLocation(".", "FileSystem");
    
@@ -103,7 +100,7 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    mSceneMgr = mRoot->createSceneManager(Ogre::ST_GENERIC);
    mCamera = mSceneMgr->createCamera("Camera");
    mViewport = mWindow->addViewport(mCamera);
-   mViewport->setBackgroundColour(Gorilla::webcolour(Gorilla::Colours::FireBrick));
+   mViewport->setBackgroundColour(Gorilla::rgb(85,183,40));
    
    rgm->initialiseAllResourceGroups();
   }

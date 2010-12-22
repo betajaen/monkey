@@ -4,25 +4,23 @@
 
 mouse
 {
-	z-index: 15;
 	background-image: "mousepointer";
-}
-
-finger
-{
-	z-index:15;
-	background-image: "finger";	opacity:  0.8;
 }
 
 #test
 {
-	font: 24;
+	font: 9;
 	background-color: RGBA(115, 194, 251, 255);
-	border: 8 RGBA(0, 128, 0, 150);
+	border: 8 RGBA(163, 193, 173, 255);
+	vertical-align: middle;
 }
 
-.green
+.notgreen
 {
-	background-color: RGBA(0,100,0,255);
-	font: 14;
+	background-color: RGB(255, 91, 110);
+}
+
+.needabiggerboat
+{
+	font: 24;
 }
