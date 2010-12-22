@@ -558,10 +558,12 @@ void PuzzleTree::dumpCSS()
 
 Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int width, unsigned int height)
 {
- Element* elem = new Element(css_id_or_classes, top, left, width, height, mLayers[10], this);
+ Element* elem = new Element(css_id_or_classes, top, left, width, height, mLayers[0], this, 0, 0);
  mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  return elem;
 }
+
+// ----------------------------------------------------------------------------------------------------------------
 
 void ElementStyle::reset()
 {
@@ -746,43 +748,98 @@ void ElementStyle::from_css(const Ogre::String& key, const Ogre::String& value)
 void ElementStyle::merge(ElementStyle& other)
 {
  if (alignment.horz_set)
+ {
   other.alignment.horz = alignment.horz;
+  other.alignment.horz_set = true;
+ }
  if (alignment.vert_set)
+ {
   other.alignment.vert = alignment.vert;
+  other.alignment.vert_set = true;
+ }
+ 
  if (background.set)
  {
   other.background.type = background.type;
   other.background.colour = background.colour;
   other.background.sprite = background.sprite;
+  other.background.set = true;
  }
+ 
  if (border.width_set)
+ {
   other.border.width = border.width;
+  other.border.width_set = true;
+ }
+  
  if (border.top_set)
+ {
   other.border.top = border.top;
+  other.border.top_set = true;
+ }
+ 
  if (border.left_set)
+ {
   other.border.left = border.left;
+  other.border.left_set = true;
+ }
+ 
  if (border.right_set)
+ {
   other.border.right = border.right;
+  other.border.right_set = true;
+ }
+ 
  if (border.bottom_set)
+ {
   other.border.bottom = border.bottom;
+  other.border.bottom_set = true;
+ }
+ 
  if (colour_set)
+ {
   other.colour = colour;
+  other.colour_set = true;
+ }
+ 
  if (font_set)
+ {
   other.font = font;
+  other.font_set = true;
+ }
+ 
 }
 
 
-Element::Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer* layer, PuzzleTree* parent)
-: mParent(parent), mLayer(layer), mRectangle(0), mCaption(0), mX(x), mY(y), mWidth(w), mHeight(h)
+// ----------------------------------------------------------------------------------------------------------------
+
+
+Element::Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index)
+: mTree(tree), mParent(parent), mLayer(layer), mRectangle(0), mCaption(0), mX(x), mY(y), mWidth(w), mHeight(h), mIndex(index)
 {
+ 
  mLook.reset();
  namespace S = ::Monkey::SecretMonkey;
- Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(id_and_or_classes, " ");
  
+ std::string classes;
+ 
+ classes.append(id_and_or_classes);
+
+ if (mParent != 0)
+ {
+  // Merge parent's initial style.
+  mParent->getStyle()->merge(mLook);
+  // Allow for a child's style based on parent-child order...thing.
+  classes.append(" #" + mParent->getID() + ":child");   // '#parent:child'
+ }
+ 
+ Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(classes, " ");
+ 
+ std::cout << "---\n";
  Ogre::String name;
  for (size_t i=0;i < strs.size();i++)
  {
-  
+  std::cout << strs[i] << "\n";
   if (strs[i][0] == '#')
   {
    name = strs[i];
@@ -793,39 +850,89 @@ Element::Element(const std::string& id_and_or_classes, unsigned int x, unsigned 
    name.clear();
    name.assign("." + strs[i]);
   }
-  
-  ElementStyle* style = mParent->getStyle(name);
+   
+  ElementStyle* style = mTree->getStyle(name);
   if (style == 0)
+  {
+   std::cout << "[Monkey] Style '" << strs[i] << "' not found!\n";
    continue;
-  
+  }
   style->merge(mLook);
  }
  
+
  reapplyLook();
  
 }
 
 Element::~Element()
 {
+ // TODO
+}
+
+Element* Element::createChild(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h)
+{
+ size_t index = mIndex + 1;
+ if (index >= 14)
+  index = 14;
+ Element* elem = new Element(id_and_or_classes, x, y, w, h, mTree->mLayers[index], mTree, this, index);
+ mTree->mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
+ mChildren.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
+ return elem;
+}
+
+void Element::destroyChild(Element*)
+{
 }
 
 void Element::reapplyLook()
 {
  
+ unsigned int x = mX ,y = mY, w = mWidth, h = mHeight;
+
+ if (mParent)
+ {
+  x += mParent->getLeft();
+  y += mParent->getTop();
+  
+  // If there is a background/border, obey the width/height to that.
+  if (mLook.background.type != ElementStyle::Background::BT_Transparent || mLook.border.width != 0)
+  {
+   if (x + w > mParent->getLeft() + mParent->getWidth())
+    w -= (x + w) - (mParent->getLeft() + mParent->getWidth());
+   if (y + h > mParent->getTop() + mParent->getHeight())
+    h -= (y + h) - (mParent->getTop() + mParent->getHeight());
+  }
+  else
+  {
+   w = mParent->getWidth() - mX;
+   h = mParent->getHeight() - mY;
+  }
+ }
+ 
  if (mText.length() != 0)
  {
   if (mCaption == 0)
-   mCaption = mLayer->createCaption(mLook.font, mX, mY, mText);
+   mCaption = mLayer->createCaption(mLook.font, x, y, mText);
   mCaption->colour(mLook.colour);
-  mCaption->align(mLook.alignment.horz);
-  mCaption->vertical_align(mLook.alignment.vert);
-  mCaption->width(mWidth);
-  mCaption->height(mHeight);
-  mCaption->left(mX);
-  mCaption->top(mY);
+  
+  if (mLook.background.type != ElementStyle::Background::BT_Transparent || mLook.border.width != 0)
+  {
+   mCaption->align(mLook.alignment.horz);
+   mCaption->vertical_align(mLook.alignment.vert);
+  }
+  else
+  {
+   mCaption->align(Gorilla::TextAlign_Left);
+   mCaption->vertical_align(Gorilla::VerticalAlign_Top);
+  }
+  mCaption->width(w);
+  mCaption->height(h);
+  mCaption->left(x);
+  mCaption->top(y);
   mCaption->colour(mLook.colour);
   mCaption->no_background();
-  mLook.font;  // <<<< Gorilla::Caption needs a font function
+  mCaption->font(mLook.font);
   mCaption->text(mText);
  }
 
@@ -835,43 +942,39 @@ void Element::reapplyLook()
   mCaption = 0;
  }
  
- if (mRectangle == 0)
+ if (mLook.background.type != ElementStyle::Background::BT_Transparent || mLook.border.width != 0)
  {
-  mRectangle = mLayer->createRectangle(mX, mY, mWidth, mHeight);
+  
+  if (mRectangle == 0)
+   mRectangle = mLayer->createRectangle(x, y, w, h);
+  
+  if (mLook.background.type == ElementStyle::Background::BT_Colour)
+   mRectangle->background_colour(mLook.background.colour);
+  else if (mLook.background.type == ElementStyle::Background::BT_Sprite)
+   mRectangle->background_image(mLook.background.sprite);
+  else
+   mRectangle->no_background();
+
+  if (mLook.border.width == 0)
+   mRectangle->no_border();
+  else
+   mRectangle->border(mLook.border.width, mLook.border.top, mLook.border.right, mLook.border.bottom, mLook.border.left);
+ 
+  mRectangle->position(x, y);
+  mRectangle->width(w);
+  mRectangle->height(h);
+ }
+ else
+ {
+  if (mRectangle)
+  {
+   mLayer->destroyRectangle(mRectangle);
+   mRectangle = 0;
+  }
  }
  
- if (mLook.background.type == ElementStyle::Background::BT_Colour)
-  mRectangle->background_colour(mLook.background.colour);
- else if (mLook.background.type == ElementStyle::Background::BT_Sprite)
-  mRectangle->background_image(mLook.background.sprite);
- else
-  mRectangle->no_background();
+ std::cout << "Stats: " << mID << "\n x,y = " << x << ", " << y << "\n w,h = " << w << "," << h << "\n Rectangle=" << mRectangle << "\n Caption=" << mCaption << "\n";
 
- if (mLook.border.width == 0)
-  mRectangle->no_border();
- else
-  mRectangle->border(mLook.border.width, mLook.border.top, mLook.border.right, mLook.border.bottom, mLook.border.left);
- 
- mRectangle->position(mX, mY);
- mRectangle->width(mWidth);
- mRectangle->height(mHeight);
- 
 }
-
-#if 0
-    
-void setTop(unsigned int top);
-void setLeft(unsigned int left);
-void setWidth(unsigned int width);
-void setHeight(unsigned int height);
-void setText(const Ogre::String& text);
-    
-unsigned int getTop() const;
-unsigned int getLeft() const;
-unsigned int getWidth() const;
-unsigned int getHeight() const;
-unsigned int getText() const;
-    
-    #endif
 
 } // namespace Monkey

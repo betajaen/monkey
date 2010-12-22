@@ -43,6 +43,8 @@ namespace Monkey
    
   public:
    
+   friend class Element;
+   
    // PuzzleTree constructor. 
    // Note: If Gorilla's Silverback hasn't been created, PuzzleTree will create it.
    PuzzleTree(const Ogre::String& monkey_css, Ogre::Viewport*);
@@ -123,10 +125,13 @@ namespace Monkey
     
    public:
     
-    Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer*, PuzzleTree*);
+    Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer*, PuzzleTree*, Element*, size_t index);
     
    ~Element();
     
+    Element* createChild(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w = 0, unsigned int h = 0);
+    void destroyChild(Element*);
+
     void setTop(unsigned int top)   { mY = top; reapplyLook(); }
     void setLeft(unsigned int left)   { mX = left; reapplyLook(); }
     void setWidth(unsigned int width)   { mWidth = width; reapplyLook(); }
@@ -134,16 +139,34 @@ namespace Monkey
     void setText(const Ogre::String& text)   { mText = text; reapplyLook(); }
     
     Ogre::String getID() const { return mID; }
-    unsigned int getTop() const { return mY; }
-    unsigned int getLeft() const { return mX; }
+    unsigned int getTop() const
+    {
+     if (mParent)
+      return mParent->getTop() + mY;
+     else
+      return mY;
+    }
+    unsigned int getLeft() const
+    {
+     if (mParent)
+      return mParent->getLeft() + mX;
+     else
+      return mX;
+    }
+    
     unsigned int getWidth() const { return mWidth; }
     unsigned int getHeight() const { return mHeight; }
     Ogre::String getText() const { return mText; }
     
-   void reapplyLook();
+    ElementStyle* getStyle() { return &mLook; }
+    
+    void reapplyLook();
+    
    protected:
-
-    PuzzleTree*               mParent;
+    
+    PuzzleTree*               mTree;
+    Element*                  mParent;
+    std::multimap<Ogre::String, Element*>      mChildren;
     Ogre::String              mID;
     std::vector<Ogre::String> mStyles;
     ElementStyle              mLook;
@@ -151,7 +174,7 @@ namespace Monkey
     Gorilla::Rectangle*       mRectangle;
     Ogre::String              mText;
     Gorilla::Layer*           mLayer;
-
+    size_t                    mIndex;
     unsigned int              mX, mY, mWidth, mHeight;
   };
   
