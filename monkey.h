@@ -28,17 +28,39 @@
 #define MONKEY_H
 
 #include "OGRE/Ogre.h"
+#include "OIS/OIS.h"
 #include "Gorilla.h"
 
 
 namespace Monkey
 {
  
+ enum Unit
+ {
+  Unit_Pixel,
+  Unit_Percent,
+  Unit_AlignRight,
+  Unit_AlignCenter
+ };
+
  class Element;
  struct ElementStyle;
  class PuzzleTree;
-
- class PuzzleTree
+ 
+ class Callback
+ {
+  public:
+   // Mouse not moving, mouse clicked once.
+   virtual void onClick(Monkey::Element*, const OIS::MouseState&) {}
+   // Mouse not moving, mouse clicked twice quickly.
+   virtual void onDoubleClick(Monkey::Element*, const OIS::MouseState&) {}
+   // Mouse moving.
+   virtual void onMouseMove(Monkey::Element*, const OIS::MouseState&) {}
+   // Mouse moving, with any button held down.
+   virtual void onMouseDrag(Monkey::Element*, const OIS::MouseState&) {}
+ };
+ 
+ class PuzzleTree 
  {
    
   public:
@@ -47,22 +69,27 @@ namespace Monkey
    
    // PuzzleTree constructor. 
    // Note: If Gorilla's Silverback hasn't been created, PuzzleTree will create it.
-   PuzzleTree(const Ogre::String& monkey_css, Ogre::Viewport*);
+   PuzzleTree(const Ogre::String& monkey_css, Ogre::Viewport*, Callback* callback);
    
-      PuzzleTree() {} // temp.
-   
-
   ~PuzzleTree();
    
-   Element* createElement(const Ogre::String& css_id_or_classes, unsigned int top, unsigned int left, unsigned int width, unsigned int height);
+   Element* createElement(const Ogre::String& css_id_or_classes);
    
-   void destroyElement(Element*);
+   Callback* getCallback() const { return mCallback; }
    
-   void destroyElement(const Ogre::String& css_id);
+   void maml(const Ogre::String& maml_string);
    
    void loadCSS(const Ogre::String& monkey_css);
    
+   void mouseMoved( const OIS::MouseEvent &arg );
+   
+   void mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
+   
+   void mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
+   
    Gorilla::Silverback*  getSilverback() const { return mSilverback; }
+
+   Gorilla::Screen* getScreen() const { return mScreen; }
 
    void dumpCSS();
 
@@ -77,6 +104,7 @@ namespace Monkey
    
   protected:
    
+   std::vector<Element*>                      mMouseListenerElements;
    std::multimap<Ogre::String, Element*>      mElements;
    std::map<Ogre::String, ElementStyle*>      mStyles;
    Gorilla::Silverback*                       mSilverback;
@@ -84,6 +112,9 @@ namespace Monkey
    Ogre::Viewport*                            mViewport;
    Gorilla::Layer*                            mLayers[16];
    Ogre::String                               mAtlas;
+   OIS::Mouse*                                mMouse;
+   Element*                                   mMousePointer;
+   Callback*                                  mCallback;
  };
  
   struct ElementStyle
@@ -114,10 +145,22 @@ namespace Monkey
     Ogre::ColourValue top, left, right, bottom;
     bool top_set, left_set, right_set, bottom_set;
    } border;
+   float width;
+   Unit width_unit;
+   bool width_set;
+   float height;
+   Unit height_unit;
+   bool height_set;
+   float left;
+   Unit left_unit;
+   bool left_set;
+   int top;
+   Unit top_unit;
+   bool top_set;
    void reset();
    void to_css(Ogre::String&);
    void from_css(const Ogre::String& key, const Ogre::String& value);
-   void merge(ElementStyle&);
+   void merge(ElementStyle&, bool isParent);
   };
 
   class Element
@@ -125,37 +168,67 @@ namespace Monkey
     
    public:
     
-    Element(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w, unsigned int h, Gorilla::Layer*, PuzzleTree*, Element*, size_t index);
+    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index);
     
    ~Element();
     
-    Element* createChild(const std::string& id_and_or_classes, unsigned int x, unsigned int y, unsigned int w = 0, unsigned int h = 0);
-    void destroyChild(Element*);
+    Element* createChild(const std::string& id_and_or_classes);
+    
+    void listen()
+    {
+     mTree->mMouseListenerElements.push_back(this);
+    }
+    
+    void unlisten()
+    {
+     mTree->mMouseListenerElements.erase(std::find(mTree->mMouseListenerElements.begin(), mTree->mMouseListenerElements.end(), this));
+    }
+    
+    bool onClick(const Ogre::Vector2& coords, const OIS::MouseEvent&);
+    bool onDoubleClick(const Ogre::Vector2& coords, const OIS::MouseEvent&);
+    bool onMouseMove(const Ogre::Vector2& coords, const OIS::MouseEvent&);
+    bool onMouseDrag(const Ogre::Vector2& coords, const OIS::MouseEvent&);
 
-    void setTop(unsigned int top)   { mY = top; reapplyLook(); }
-    void setLeft(unsigned int left)   { mX = left; reapplyLook(); }
-    void setWidth(unsigned int width)   { mWidth = width; reapplyLook(); }
-    void setHeight(unsigned int height)   { mHeight = height; reapplyLook(); }
     void setText(const Ogre::String& text)   { mText = text; reapplyLook(); }
     
     Ogre::String getID() const { return mID; }
-    unsigned int getTop() const
+    
+    float getScreenLeft() const
     {
-     if (mParent)
-      return mParent->getTop() + mY;
-     else
-      return mY;
+     if (mRectangle)
+      return mRectangle->left();
+     else if (mCaption)
+      return mCaption->left();
+     return 0;
     }
-    unsigned int getLeft() const
+    
+    float getScreenTop() const
     {
-     if (mParent)
-      return mParent->getLeft() + mX;
-     else
-      return mX;
+     if (mRectangle)
+      return mRectangle->top();
+     else if (mCaption)
+      return mCaption->top();
+     return 0;
     }
-    bool hasLimits() const { return mHasLimits; }
-    unsigned int getWidth() const { return mWidth; }
-    unsigned int getHeight() const { return mHeight; }
+
+    float getScreenWidth() const
+    {
+     if (mRectangle)
+      return mRectangle->width();
+     else if (mCaption)
+      return mCaption->width();
+     return 0;
+    }
+    
+    float getScreenHeight() const
+    {
+     if (mRectangle)
+      return mRectangle->height();
+     else if (mCaption)
+      return mCaption->width();
+     return 0;
+    }
+    
     Ogre::String getText() const { return mText; }
     
     ElementStyle* getStyle() { return &mLook; }
@@ -175,8 +248,6 @@ namespace Monkey
     Ogre::String              mText;
     Gorilla::Layer*           mLayer;
     size_t                    mIndex;
-    unsigned int              mX, mY, mWidth, mHeight;
-    bool                      mHasLimits;
   };
   
 }

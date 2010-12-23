@@ -5,7 +5,7 @@
 
 #pragma warning ( disable : 4244 )
 
-class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::MouseListener
+class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::MouseListener, public Monkey::Callback
 {
   
  public:
@@ -18,16 +18,18 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    _makeOgre();
    _makeOIS();
    
-   mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport);
-   Monkey::Element* test = mTree->createElement("#test notgreen needabiggerboat", 30, 30, 320, 100);
-   test->setText("Big Monkey!");
-   
-   Monkey::Element* immonkey = test->createChild("notblue", 1,1, 500,20);
-   immonkey->setText("I'm Child of big parent monkey!");
-   
-   immonkey->createChild("coco", 190, 1, 50,50);
+   mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport, this);
+   Monkey::Element* test = mTree->createElement("#test");
+   test->listen();
+   test->createChild("#coco");
+   test->createChild("#test-text")->setText("Hello Monkey!");
   }
   
+  void onClick(Monkey::Element*, const OIS::MouseState& state)
+  {
+   std::cout << "Clicky!!!\n";
+  }
+
  ~App()
   {
    delete mTree;
@@ -60,16 +62,19 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
   
   bool mouseMoved( const OIS::MouseEvent &arg )
   {
+   mTree->mouseMoved(arg);
    return true;
   }
   
   bool mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
   {
+   mTree->mousePressed(arg, id);
    return true;
   }
   
   bool mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
   {
+   mTree->mouseReleased(arg, id);
    return true;
   }
   
@@ -104,7 +109,7 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    mSceneMgr = mRoot->createSceneManager(Ogre::ST_GENERIC);
    mCamera = mSceneMgr->createCamera("Camera");
    mViewport = mWindow->addViewport(mCamera);
-   mViewport->setBackgroundColour(Gorilla::rgb(85,183,40));
+   mViewport->setBackgroundColour(Gorilla::rgb(128, 70, 27));
    
    rgm->initialiseAllResourceGroups();
   }

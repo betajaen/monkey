@@ -1,46 +1,42 @@
-// test
+// Rendezvous
 
 @import ("rendezvous");
 
-mouse
+mousepointer
 {
-	background-image: "mousepointer";
+	background-image: mousepointer;
+	width: 15;
+	height: 22;
 }
 
 #test
 {
 	font: 9;
-	background-color: RGBA(115, 194, 251, 255);
-	border: 8 RGBA(163, 193, 173, 255);
-	vertical-align: middle;
-	text-align: center;
+	background-color: RGBA(61, 43, 31, 255);
+	border: 4 RGBA(32, 32, 32, 255);
+	left: center;
+	top: center;
+	width: 50%;
+	height: 50%;
 }
 
-#test:child
-{
-	font: 9;
-	vertical-align: top;
-	color: RGBA(0,0,255,255);
-	border: 0;
-	background-color: RGB(255,255,255);
-}
-
-.white
-{
-	background-color: RGBA(255,255,255,255)
-}
-
-.coco
+#coco
 {
 	background-image: coco;
+	width: 100;
+	height: 100;
+	top: 0;
+	left: 0;
 }
 
-.notgreen
-{
-	background-color: RGB(255, 91, 110);
-}
-
-.needabiggerboat
+#test-text
 {
 	font: 24;
+	left: center;
+	top: center;
+	width: 100%;
+	height: 100%;
+	text-align:center;
+	vertical-align:middle;
+	color: RGB(240, 220, 130);
 }
