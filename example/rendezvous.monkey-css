@@ -9,7 +9,7 @@ mousepointer
 	height: 22;
 }
 
-#test
+#message
 {
 	font: 9;
 	background-color: RGBA(61, 43, 31, 255);
@@ -17,19 +17,19 @@ mousepointer
 	left: center;
 	top: center;
 	width: 50%;
-	height: 50%;
+	height: 40%;
 }
 
-#coco
+.coco
 {
 	background-image: coco;
-	width: 100;
-	height: 100;
-	top: 0;
-	left: 0;
+	width: 64;
+	height: 64;
+	top: middle;
+	left: 32;
 }
 
-#test-text
+.text
 {
 	font: 24;
 	left: center;
@@ -39,4 +39,19 @@ mousepointer
 	text-align:center;
 	vertical-align:middle;
 	color: RGB(240, 220, 130);
+}
+
+.k
+{
+	font: 24;
+	left: 70%;
+	top: 80%;
+	width: 25.5%;
+	height: 12.5%;
+	color: RGB(255,255,255);
+	border: 2 RGBA(255,255,255,255);
+	text-align: center;
+	vertical-align: middle;
+	border-right: RGB(32,32,32);
+	border-bottom: RGB(32,32,32);
 }

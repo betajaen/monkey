@@ -19,15 +19,16 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    _makeOIS();
    
    mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport, this);
-   Monkey::Element* test = mTree->createElement("#test");
-   test->listen();
-   test->createChild("#coco");
-   test->createChild("#test-text")->setText("Hello Monkey!");
+   mTree->maml("test.maml");
+   
+   //mTree->dumpElements();
+   //mTree->dumpCSS();
   }
   
-  void onClick(Monkey::Element*, const OIS::MouseState& state)
+  void onClick(Monkey::Element* elem, const OIS::MouseState& state)
   {
-   std::cout << "Clicky!!!\n";
+   if (elem->getText() == "Okay")
+    elem->setText("KTHX");
   }
 
  ~App()
@@ -150,7 +151,9 @@ void main()
  try
  {
   App* app = new App();
+#if 1
   app->mRoot->startRendering();
+#endif
   delete app;
  }
  catch(Ogre::Exception& e)

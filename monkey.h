@@ -93,6 +93,8 @@ namespace Monkey
 
    void dumpCSS();
 
+   void dumpElements();
+
    ElementStyle* getStyle(const Ogre::String& name)
    {
     std::map<Ogre::String, ElementStyle*>::iterator it = mStyles.find(name);
@@ -113,7 +115,7 @@ namespace Monkey
    Gorilla::Layer*                            mLayers[16];
    Ogre::String                               mAtlas;
    OIS::Mouse*                                mMouse;
-   Element*                                   mMousePointer;
+   Gorilla::Rectangle*                        mMousePointer;
    Callback*                                  mCallback;
  };
  
@@ -154,7 +156,7 @@ namespace Monkey
    float left;
    Unit left_unit;
    bool left_set;
-   int top;
+   float top;
    Unit top_unit;
    bool top_set;
    void reset();
@@ -172,6 +174,16 @@ namespace Monkey
     
    ~Element();
     
+    bool hasParent() const
+    {
+     return mParent != 0;
+    }
+
+    Element* getParent() const
+    {
+     return mParent;
+    }
+     
     Element* createChild(const std::string& id_and_or_classes);
     
     void listen()
@@ -183,6 +195,8 @@ namespace Monkey
     {
      mTree->mMouseListenerElements.erase(std::find(mTree->mMouseListenerElements.begin(), mTree->mMouseListenerElements.end(), this));
     }
+
+    void debug(size_t index = 0);
     
     bool onClick(const Ogre::Vector2& coords, const OIS::MouseEvent&);
     bool onDoubleClick(const Ogre::Vector2& coords, const OIS::MouseEvent&);
