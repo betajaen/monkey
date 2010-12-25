@@ -43,6 +43,20 @@ namespace Monkey
   Unit_AlignCenter
  };
 
+ enum ElementState
+ {
+  ElementState_Normal,
+  ElementState_Active,
+  ElementState_Hover
+ };
+
+ enum ElementType
+ {
+  ElementType_Block,
+  ElementType_Button,
+  ElementType_TextBox,
+ };
+
  class Element;
  struct ElementStyle;
  class PuzzleTree;
@@ -51,13 +65,12 @@ namespace Monkey
  {
   public:
    // Mouse not moving, mouse clicked once.
-   virtual void onClick(Monkey::Element*, const OIS::MouseState&) {}
-   // Mouse not moving, mouse clicked twice quickly.
-   virtual void onDoubleClick(Monkey::Element*, const OIS::MouseState&) {}
-   // Mouse moving.
-   virtual void onMouseMove(Monkey::Element*, const OIS::MouseState&) {}
-   // Mouse moving, with any button held down.
-   virtual void onMouseDrag(Monkey::Element*, const OIS::MouseState&) {}
+   virtual void onElementActivated(Monkey::Element*, const OIS::MouseState&) {}
+   // Mouse not moving, mouse clicked once.
+   virtual void onElementFocused(Monkey::Element*, const OIS::MouseState&) {}
+   // Mouse not moving, mouse clicked once.
+   virtual void onElementBlur(Monkey::Element*, const OIS::MouseState&) {}
+   
  };
  
  class PuzzleTree 
@@ -73,7 +86,7 @@ namespace Monkey
    
   ~PuzzleTree();
    
-   Element* createElement(const Ogre::String& css_id_or_classes);
+   Element* createElement(const Ogre::String& css_id_or_classes, ElementType);
    
    Callback* getCallback() const { return mCallback; }
    
@@ -97,15 +110,17 @@ namespace Monkey
 
    ElementStyle* getStyle(const Ogre::String& name)
    {
+    std::cout << "Looking up style " << name << "\n";
     std::map<Ogre::String, ElementStyle*>::iterator it = mStyles.find(name);
     if (it == mStyles.end())
      return 0;
     return (*it).second;
    }
    
-   
   protected:
    
+   void _checkMouse(const OIS::MouseEvent &arg, OIS::MouseButtonID id, int ois_event, ElementState state);
+
    std::vector<Element*>                      mMouseListenerElements;
    std::multimap<Ogre::String, Element*>      mElements;
    std::map<Ogre::String, ElementStyle*>      mStyles;
@@ -117,6 +132,7 @@ namespace Monkey
    OIS::Mouse*                                mMouse;
    Gorilla::Rectangle*                        mMousePointer;
    Callback*                                  mCallback;
+   Element*                                   mLastEventElement;
  };
  
   struct ElementStyle
@@ -162,7 +178,7 @@ namespace Monkey
    void reset();
    void to_css(Ogre::String&);
    void from_css(const Ogre::String& key, const Ogre::String& value);
-   void merge(ElementStyle&, bool isParent);
+   void merge(ElementStyle*, bool isParent);
   };
 
   class Element
@@ -170,7 +186,7 @@ namespace Monkey
     
    public:
     
-    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index);
+    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index, ElementType = ElementType_Block);
     
    ~Element();
     
@@ -184,7 +200,7 @@ namespace Monkey
      return mParent;
     }
      
-    Element* createChild(const std::string& id_and_or_classes);
+    Element* createChild(const std::string& id_and_or_classes, ElementType);
     
     void listen()
     {
@@ -196,13 +212,21 @@ namespace Monkey
      mTree->mMouseListenerElements.erase(std::find(mTree->mMouseListenerElements.begin(), mTree->mMouseListenerElements.end(), this));
     }
 
+    void setState(ElementState state)
+    {
+     mState = state;
+     reapplyLook();
+    }
+
+    ElementState getState() const
+    {
+     return mState;
+    }
+
     void debug(size_t index = 0);
     
-    bool onClick(const Ogre::Vector2& coords, const OIS::MouseEvent&);
-    bool onDoubleClick(const Ogre::Vector2& coords, const OIS::MouseEvent&);
-    bool onMouseMove(const Ogre::Vector2& coords, const OIS::MouseEvent&);
-    bool onMouseDrag(const Ogre::Vector2& coords, const OIS::MouseEvent&);
-
+    Element* intersectionTest(int left, int top);
+    
     void setText(const Ogre::String& text)   { mText = text; reapplyLook(); }
     
     Ogre::String getID() const { return mID; }
@@ -245,23 +269,32 @@ namespace Monkey
     
     Ogre::String getText() const { return mText; }
     
-    ElementStyle* getStyle() { return &mLook; }
+    ElementStyle* getNormalStyle() { return &mLookNormal; }
+    
+    ElementStyle* getActiveStyle() { return &mLookActive; }
+    
+    ElementStyle* getHoverStyle() { return &mLookHover; }
     
     void reapplyLook();
     
+    void refreshLook(ElementStyle*, const Ogre::String& id_and_or_classes);
+
    protected:
     
-    PuzzleTree*               mTree;
-    Element*                  mParent;
+    ElementType                                mType;
+    PuzzleTree*                                mTree;
+    Element*                                   mParent;
     std::multimap<Ogre::String, Element*>      mChildren;
-    Ogre::String              mID;
-    std::vector<Ogre::String> mStyles;
-    ElementStyle              mLook;
-    Gorilla::Caption*         mCaption;
-    Gorilla::Rectangle*       mRectangle;
-    Ogre::String              mText;
-    Gorilla::Layer*           mLayer;
-    size_t                    mIndex;
+    Ogre::String                               mID;
+    std::vector<Ogre::String>                  mStyles;
+    ElementState                               mState;
+    ElementStyle                               mLookNormal, mLookActive, mLookHover;
+    Gorilla::Caption*                          mCaption;
+    Gorilla::Rectangle*                        mRectangle;
+    Ogre::String                               mText;
+    Gorilla::Layer*                            mLayer;
+    size_t                                     mIndex;
+    
   };
   
 }

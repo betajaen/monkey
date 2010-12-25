@@ -9,6 +9,14 @@ mousepointer
 	height: 22;
 }
 
+button
+{
+	width:25%;
+	height:25%;
+	background-color: RGB(255,255,255);
+	color: RGB(0,0,0);
+}
+
 #message
 {
 	font: 9;
@@ -16,17 +24,17 @@ mousepointer
 	border: 4 RGBA(32, 32, 32, 255);
 	left: center;
 	top: center;
-	width: 50%;
-	height: 40%;
+	width: 95%;
+	height: 50%;
 }
 
 .coco
 {
 	background-image: coco;
-	width: 64;
-	height: 64;
+	width: 48;
+	height: 48;
 	top: middle;
-	left: 32;
+	left: 16;
 }
 
 .text
@@ -41,17 +49,29 @@ mousepointer
 	color: RGB(240, 220, 130);
 }
 
-.k
+#k
 {
 	font: 24;
 	left: 70%;
 	top: 80%;
 	width: 25.5%;
-	height: 12.5%;
+	height: 15%;
 	color: RGB(255,255,255);
 	border: 2 RGBA(255,255,255,255);
 	text-align: center;
 	vertical-align: middle;
 	border-right: RGB(32,32,32);
 	border-bottom: RGB(32,32,32);
+}
+
+#k:hover
+{
+	background-color: RGB(255,255,255);
+	color: RGBA(61, 43, 31, 255);
+}
+
+#k:active
+{
+	background-color: RGB(255,255,255);
+	color: RGBA(255, 0, 0, 255);
 }

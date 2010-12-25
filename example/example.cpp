@@ -20,17 +20,23 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    
    mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport, this);
    mTree->maml("test.maml");
-   
-   //mTree->dumpElements();
-   //mTree->dumpCSS();
   }
   
-  void onClick(Monkey::Element* elem, const OIS::MouseState& state)
+  void onElementActivated(Monkey::Element* elem, const OIS::MouseState&)
   {
-   if (elem->getText() == "Okay")
-    elem->setText("KTHX");
+   std::cout << "Activated\n";
   }
-
+  
+  void onElementFocused(Monkey::Element*, const OIS::MouseState&)
+  {
+   std::cout << "Focused\n";
+  }
+  
+  void onElementBlur(Monkey::Element*, const OIS::MouseState&)
+  {
+   std::cout << "Blured\n";
+  }
+  
  ~App()
   {
    delete mTree;

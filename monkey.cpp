@@ -43,9 +43,9 @@ static const String bool_false = "false";
 static const String whitespace = " \t\r\n";
 static const String newlines = "\r\n";
 
- size_t index(const String& string, char search)
+ size_t index(const String& string, char search, size_t start = 0)
  {
-  return string.find_first_of(search);
+  return string.find_first_of(search, start);
  }
 
  bool has(const String& string, char search)
@@ -437,6 +437,31 @@ Ogre::String toCSSRGBAColour(const Ogre::ColourValue& colour)
  return s.str();
 }
 
+char hexToDec(char c)
+{
+ c = tolower(c);
+ return c;
+}
+
+Ogre::ColourValue ColourFromHexString(const Ogre::String& hexString)
+{
+ 
+ Ogre::ColourValue col;
+ if (hexString.length() == 3) // RGB
+ {
+ }
+ else if (hexString.length() == 4) // RGBA
+ {
+ }
+ else if (hexString.length() == 6)  // RrGgBb
+ {
+ }
+ else if (hexString.length() == 8) // RrGgBbAa
+ {
+ }
+ return col;
+}
+
 } // namespace SecretMonkey
 
 
@@ -444,7 +469,7 @@ Ogre::String toCSSRGBAColour(const Ogre::ColourValue& colour)
 
 
 PuzzleTree::PuzzleTree(const Ogre::String& css, Ogre::Viewport* viewport, Callback* callback)
-: mViewport(viewport), mCallback(callback)
+: mViewport(viewport), mCallback(callback), mLastEventElement(0)
 {
  
  loadCSS(css);
@@ -494,9 +519,9 @@ PuzzleTree::PuzzleTree(const Ogre::String& css, Ogre::Viewport* viewport, Callba
    mMousePointer->no_border();
   else
    mMousePointer->border(style->border.width, style->border.top, style->border.right, style->border.bottom, style->border.left);
- 
   
  }
+ 
 }
 
 PuzzleTree::~PuzzleTree()
@@ -523,31 +548,29 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
  Element* previous = 0;
  Element* elem = 0;
  size_t currentIndent = 0, previousIndent = 0, parentIndent = 0;
- Ogre::String line, trimmedLine, elemID, text;
-
+ Ogre::String line, trimmedLine, elemID, text, attributes;
+ ElementType elemType = ElementType_Block;
+ bool isListener = false;
  while (!stream->eof())
  {
+  isListener = false;
+  elemType = ElementType_Block;
   line = stream->getLine(false);
   trimmedLine = S::trim_copy(line);
   if (trimmedLine.length() == 0)
    continue;
   currentIndent = S::count_indent(line);
-  std::cout << "Indent is " << currentIndent << "\n";
   if (currentIndent == 0)
   {
-   std::cout << "Indent level is reset\n";
    parent = 0;
    previous = 0;
   }
   else if (currentIndent > previousIndent)
   {
-   std::cout << "Indent level is larger, I am a child of parent\n";
    parent = previous;
   }
   else if (currentIndent < previousIndent)
   {
-   std::cout << "Indent level is smaller, I am sibling of parent\n";
-   std::cout << "Difference is " << (previousIndent - currentIndent) << "\n";
    parent = previous;
    for (size_t i=0;i < (previousIndent - currentIndent) + 1;i++)
    {
@@ -557,20 +580,93 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
   }
   
   elemID = trimmedLine;
-  S::slice_to_first_of(elemID, S::String(" !=\n"));
-  if (elemID == "%")
-   elemID.clear();
+  size_t split_pos = std::string::npos;
+  
+  size_t attr_start = S::index(elemID, ')');
+  if (attr_start != std::string::npos) // There may be an attribute section.
+  {
+   size_t eq = S::index(elemID, '=', attr_start); // Find the value section.
+   if (eq != std::string::npos)
+    split_pos = eq;
+   else
+    split_pos = attr_start;
+  }
+  else
+  {
+   size_t eq = S::index(elemID, '=');
+   if (eq != std::string::npos)
+    split_pos = eq;
+  }
+
+  if (split_pos != std::string::npos)
+   S::slice(elemID,0, split_pos);
+  
+  
+  if (elemID[0] == '%')
+  {
+   if (S::starts_insensitive(elemID, "%block"))
+   {
+    elemType = ElementType_Block;
+    S::slice(elemID, 6); // %block == 6
+   }
+   else if (S::starts_insensitive(elemID, "%button"))
+   {
+    elemType = ElementType_Button;
+    S::slice(elemID, 7); // %button == 6
+   }
+   else if (S::starts_insensitive(elemID, "%textbox"))
+   {
+    elemType = ElementType_TextBox;
+    S::slice(elemID, 8); // %textbox == 6
+   }
+  }
+
+  if (S::has(elemID, '('))
+  {
+   attributes = elemID;
+   S::slice_to_first_of(elemID, '(');
+   S::slice_after_first_of(attributes, '(');
+   S::slice_to_last_of(attributes, ')');
+   Ogre::vector<Ogre::String>::type attrs = Ogre::StringUtil::split(attributes, ",");
+   std::string key, value;
+   for (Ogre::vector<Ogre::String>::type::iterator it = attrs.begin(); it != attrs.end(); it++)
+   {
+    S::trim((*it));
+    if (S::has((*it), '='))
+    {
+     key = (*it);
+     value = (*it);
+     S::slice_to_first_of(key, '=');
+     S::slice_after_first_of(value, '=');
+     S::trim(key);
+     S::trim(value);
+    }
+    else
+    {
+     key = (*it);
+     value = "true";
+    }
+    
+    S::slice_after_first_of(value, '"');
+    S::slice_after_first_of(value, '\'');
+    S::slice_to_first_of(value, '"');
+    S::slice_to_first_of(value, '\'');
+    
+
+    if (S::matches_insensitive(key, "listen"))
+    {
+     isListener = S::matches_insensitive(value, "true");
+    }
+   }
+  }
   
   if (parent)
-   elem = parent->createChild(elemID);
+   elem = parent->createChild(elemID, elemType);
   else
-   elem = createElement(elemID);
+   elem = createElement(elemID, elemType);
   
-  if (S::has(trimmedLine, '!'))
-  {
-   std::cout << "Registering '" << elem->getID() << "' as listener\n";
+  if (isListener)
    elem->listen();
-  }
   
   if (S::has(trimmedLine, '='))
   {
@@ -673,9 +769,9 @@ void PuzzleTree::loadCSS(const Ogre::String& css_file_name_path)
    inElement = false;
    element_name.clear();
   }
-
+  
  }
-
+ 
 }
 
 void PuzzleTree::dumpCSS()
@@ -689,9 +785,9 @@ void PuzzleTree::dumpCSS()
 }
 
 
-Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes)
+Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes, ElementType type)
 {
- Element* elem = new Element(css_id_or_classes, mLayers[0], this, 0, 0);
+ Element* elem = new Element(css_id_or_classes, mLayers[0], this, 0, 0, type);
  mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  return elem;
 }
@@ -706,39 +802,60 @@ void PuzzleTree::dumpElements()
  }
 }
 
-
-void PuzzleTree::mouseMoved( const OIS::MouseEvent &arg )
+void PuzzleTree::_checkMouse(const OIS::MouseEvent &arg, OIS::MouseButtonID id, int ois_event, ElementState state)
 {
  
  Ogre::Vector2 coords(arg.state.X.abs, arg.state.Y.abs);
  
  mMousePointer->position(coords);
 
+ Element* elem = 0;
  for (std::vector<Element*>::iterator it = mMouseListenerElements.begin(); it != mMouseListenerElements.end(); it++)
  {
-  if (arg.state.buttonDown(OIS::MB_Left))
-   (*it)->onMouseDrag(coords, arg);
-  else
-   (*it)->onMouseMove(coords, arg);
- }
+  elem = (*it)->intersectionTest(arg.state.X.abs, arg.state.Y.abs);
+  
+  if (elem != 0)
+  {
+    if (elem->getState() != state)
+    {
+     if (mLastEventElement)
+      mLastEventElement->setState(ElementState_Normal);
+     elem->setState(state);
+     mLastEventElement = elem;
+     if (ois_event == 2)
+      mCallback->onElementActivated(mLastEventElement, arg.state);
+     else if (ois_event == 0)
+      mCallback->onElementFocused(mLastEventElement, arg.state);
+    }
+    
+   break;
+  } // if
+ } // for
  
+ if (elem == 0 && mLastEventElement != 0)
+ {
+  mCallback->onElementBlur(mLastEventElement, arg.state);
+  mLastEventElement->setState(ElementState_Normal);
+  mLastEventElement = 0;
+ }
+}
+
+void PuzzleTree::mouseMoved( const OIS::MouseEvent &arg )
+{
+ ElementState state = ElementState_Hover;
+ if (arg.state.buttonDown(OIS::MB_Left))
+  state = ElementState_Active;
+ _checkMouse(arg, OIS::MB_Button7, 0, state);
 }
 
 void PuzzleTree::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
+ _checkMouse(arg, id, 1, ElementState_Active);
 }
 
 void PuzzleTree::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 {
- 
- Ogre::Vector2 coords(arg.state.X.abs, arg.state.Y.abs);
- std::cout << "On Click @ " << coords << "\n";
- for (std::vector<Element*>::iterator it = mMouseListenerElements.begin(); it != mMouseListenerElements.end(); it++)
- {
-  std::cout << "Testing against == "<< (*it)->getID() << "\n";
-  (*it)->onClick(coords, arg);
- }
- 
+ _checkMouse(arg, id, 2, ElementState_Hover);
 }
 
 
@@ -746,10 +863,10 @@ void PuzzleTree::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID i
 
 void ElementStyle::reset()
 {
- width = 1;
+ width = 1.0f;
  width_unit = Unit_Percent;
  width_set = false;
- height = 0.1;
+ height = 0.1f;
  height_unit = Unit_Percent;
  height_set = false;
  left = 0;
@@ -1074,50 +1191,50 @@ void ElementStyle::from_css(const Ogre::String& key, const Ogre::String& value)
  }
 }
 
-void ElementStyle::merge(ElementStyle& other, bool isParent)
+void ElementStyle::merge(ElementStyle* other, bool isParent)
 {
  
  if (!isParent)
  {
     if (left_set)
     {
-     other.left = left;
-     other.left_unit = left_unit;
-     other.left_set = true;
+     other->left = left;
+     other->left_unit = left_unit;
+     other->left_set = true;
     }
  
     if (top_set)
     {
-     other.top = top;
-     other.top_unit = top_unit;
-     other.top_set = true;
+     other->top = top;
+     other->top_unit = top_unit;
+     other->top_set = true;
     }
  
     if (width_set)
     {
-     other.width = width;
-     other.width_unit = width_unit;
-     other.width_set = true;
+     other->width = width;
+     other->width_unit = width_unit;
+     other->width_set = true;
     }
  
     if (height_set)
     {
-     other.height = height;
-     other.height_unit = height_unit;
-     other.height_set = true;
+     other->height = height;
+     other->height_unit = height_unit;
+     other->height_set = true;
     }
  }
  
  if (alignment.horz_set)
  {
-  other.alignment.horz = alignment.horz;
-  other.alignment.horz_set = true;
+  other->alignment.horz = alignment.horz;
+  other->alignment.horz_set = true;
  }
  
  if (alignment.vert_set)
  {
-  other.alignment.vert = alignment.vert;
-  other.alignment.vert_set = true;
+  other->alignment.vert = alignment.vert;
+  other->alignment.vert_set = true;
  }
  
  if (!isParent)
@@ -1125,52 +1242,53 @@ void ElementStyle::merge(ElementStyle& other, bool isParent)
    
    if (background.set)
    {
-    other.background.type = background.type;
-    other.background.colour = background.colour;
-    other.background.sprite = background.sprite;
-    other.background.set = true;
+    other->background.type = background.type;
+    other->background.colour = background.colour;
+    other->background.sprite = background.sprite;
+    other->background.set = true;
    }
    
    if (border.width_set)
    {
-    other.border.width = border.width;
-    other.border.width_set = true;
+    other->border.width = border.width;
+    other->border.width_set = true;
    }
   
    if (border.left_set)
    {
-    other.border.left = border.left;
-    other.border.left_set = true;
+    other->border.left = border.left;
+    other->border.left_set = true;
    }
  
    if (border.top_set)
    {
-    other.border.top = border.top;
-    other.border.top_set = true;
+    other->border.top = border.top;
+    other->border.top_set = true;
    }
  
    if (border.right_set)
    {
-    other.border.right = border.right;
-    other.border.right_set = true;
+    other->border.right = border.right;
+    other->border.right_set = true;
    }
  
    if (border.bottom_set)
    {
-    other.border.bottom = border.bottom;
-    other.border.bottom_set = true;
+    other->border.bottom = border.bottom;
+    other->border.bottom_set = true;
    }
  }
+ 
  if (colour_set)
  {
-  other.colour = colour;
-  other.colour_set = true;
+  other->colour = colour;
+  other->colour_set = true;
  }
  
  if (font_set)
  {
-  other.font = font;
-  other.font_set = true;
+  other->font = font;
+  other->font_set = true;
  }
  
 }
@@ -1179,49 +1297,61 @@ void ElementStyle::merge(ElementStyle& other, bool isParent)
 // ----------------------------------------------------------------------------------------------------------------
 
 
-Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index)
+Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index, ElementType type)
 : mTree(tree),
   mParent(parent),
   mLayer(layer),
   mRectangle(0),
   mCaption(0),
-  mIndex(index)
+  mIndex(index),
+  mState(ElementState_Normal),
+  mType(type)
 {
  
- mLook.reset();
- namespace S = ::Monkey::SecretMonkey;
+ ElementStyle* style = 0;
  
- std::string classes;
+ mLookNormal.reset();
  
- classes.append(id_and_or_classes);
+ if (mType == ElementType_Button)
+ {
+  style = mTree->getStyle("button");
+  if (style != 0)
+   style->merge(&mLookNormal, false);
+ }
+ else if (mType == ElementType_TextBox)
+ {
+  style = mTree->getStyle("textbox");
+  if (style != 0)
+   style->merge(&mLookNormal, false);
+ }
+ else if (mType == ElementType_Block)
+ {
+  style = mTree->getStyle("block");
+  if (style != 0)
+   style->merge(&mLookNormal, false);
+ }
+ 
+ refreshLook(&mLookNormal, id_and_or_classes);
+ 
+ mLookActive.reset();
+ mLookNormal.merge(&mLookActive, false);
+ mLookHover.reset();
+ mLookNormal.merge(&mLookHover, false);
 
- if (mParent != 0)
+ style = mTree->getStyle("#" + mID + ":hover");
+ if (style != 0)
  {
-  // Merge parent's initial style.
-  mParent->getStyle()->merge(mLook, true);
-  // Allow for a child's style based on parent-child order...thing.
-  classes.append(" #" + mParent->getID() + ":child");   // '#parent:child'
+  std::cout << "Got look for hover\n";
+  style->merge(&mLookHover, false);
  }
  
- Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(classes, " ");
- 
- Ogre::String name;
- for (size_t i=0;i < strs.size();i++)
+ style = mTree->getStyle("#" + mID + ":active");
+ if (style != 0)
  {
-  if (strs[i].length() == 0)
-   continue;
-  if (strs[i][0] == '#' && S::has(strs[i], ':') == false)
-   mID = S::slice_copy(strs[i], 1);
-  
-  ElementStyle* style = mTree->getStyle(strs[i]);
-  if (style == 0)
-  {
-   std::cout << "[Monkey] Style '" << strs[i] << "' not found!\n";
-   continue;
-  }
-  style->merge(mLook, false);
+  std::cout << "Got look for active\n";
+  style->merge(&mLookActive, false);
  }
-  
+ 
  reapplyLook();
  
 }
@@ -1229,6 +1359,46 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
 Element::~Element()
 {
  // TODO
+}
+
+void Element::refreshLook(ElementStyle* look, const Ogre::String& id_and_or_classes)
+{
+ 
+ namespace S = ::Monkey::SecretMonkey;
+ 
+ std::string classes;
+ classes.append(id_and_or_classes);
+ 
+ // Allow for a child's style based on parent-child order...thing.
+ if (mParent != 0)
+ {
+  mParent->getNormalStyle()->merge(look, true);
+  classes.append(" #" + mParent->getID() + ":child");   // '#parent:child'
+ }
+ 
+ Ogre::vector<Ogre::String>::type strs = Ogre::StringUtil::split(classes, " ");
+ Ogre::String name;
+ 
+ for (size_t i=0;i < strs.size();i++)
+ {
+  
+  if (strs[i].length() == 0)
+   continue;
+  
+  if (strs[i][0] == '#' && S::has(strs[i], ':') == false)
+   mID = S::slice_copy(strs[i], 1);
+    
+  ElementStyle* style = 0;
+  
+  style = mTree->getStyle(strs[i]);
+  
+  if (style == 0)
+   continue;
+  
+  style->merge(look, false);
+  
+ }
+ 
 }
 
 void Element::debug(size_t index)
@@ -1240,59 +1410,32 @@ void Element::debug(size_t index)
   (*it).second->debug(index + 1);
 }
 
-bool Element::onClick(const Ogre::Vector2& coords, const OIS::MouseEvent& evt)
+Element* Element::intersectionTest(int left, int top)
 {
- 
  if (mRectangle == 0)
- {
-  std::cout << "OnClick Failed " << mID << " No Rectangle\n";
-  return false;
- }
-
- bool intersects = mRectangle->intersects(Ogre::Vector2(evt.state.X.abs, evt.state.Y.abs));
+  return 0;
+ 
+ bool intersects = mRectangle->intersects(Ogre::Vector2(left, top));
  if (intersects == false)
- {
-  std::cout << "OnClick Failed " << mID << " Does not intersect.\n";
-  return false;
- }
- bool childRet = false;
+  return 0;
+ 
+ Element* childRet = 0;
  for (std::multimap<Ogre::String, Element*>::iterator it = mChildren.begin(); it != mChildren.end(); it++)
  {
-  childRet = (*it).second->onClick(coords, evt);
-  if (childRet)
-   break;
+  childRet = (*it).second->intersectionTest(left, top);
+  if (childRet != 0)
+   return childRet;
  }
  
- // If a child element has returned true, then it would of called the callback.
- if (!childRet)
- {
-  mTree->getCallback()->onClick(this, evt.state);
- }
- 
- return true;
+ return this;
 }
 
-bool Element::onDoubleClick(const Ogre::Vector2& coords, const OIS::MouseEvent&)
-{
- return false;
-}
-
-bool Element::onMouseMove(const Ogre::Vector2& coords, const OIS::MouseEvent&)
-{
- return false;
-}
-
-bool Element::onMouseDrag(const Ogre::Vector2& coords, const OIS::MouseEvent&)
-{
- return false;
-}
-
-Element* Element::createChild(const std::string& id_and_or_classes)
+Element* Element::createChild(const std::string& id_and_or_classes, ElementType type)
 {
  size_t index = mIndex + 1;
  if (index >= 14)
   index = 14;
- Element* elem = new Element(id_and_or_classes, mTree->mLayers[index], mTree, this, index);
+ Element* elem = new Element(id_and_or_classes, mTree->mLayers[index], mTree, this, index, type);
  mTree->mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  mChildren.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  return elem;
@@ -1301,9 +1444,16 @@ Element* Element::createChild(const std::string& id_and_or_classes)
 void Element::reapplyLook()
 {
  
- float left = 0, top = 0, width = 0, height = 0;
- float parentWidth = 0, parentHeight = 0, parentLeft = 0, parentTop = 0;
-
+ float left = 0, top = 0, width = 0, height = 0, parentWidth = 0, parentHeight = 0, parentLeft = 0, parentTop = 0;
+ 
+ ElementStyle* style = 0;
+ if (mState == ElementState_Normal)
+  style = &mLookNormal;
+ else if (mState == ElementState_Hover)
+  style = &mLookHover;
+ else
+  style = &mLookActive;
+ 
  if (mParent)
  {
   parentWidth = mParent->getScreenWidth();
@@ -1320,114 +1470,113 @@ void Element::reapplyLook()
   parentTop = 0;
  }
  
- if (mLook.left_unit == Unit_Pixel)
-  left = mLook.left;
- else if (mLook.left_unit == Unit_Percent)
-  left = mLook.left * parentWidth;
- else if (mLook.left_unit == Unit_AlignRight)
+ if (style->left_unit == Unit_Pixel)
+  left = style->left;
+ else if (style->left_unit == Unit_Percent)
+  left = style->left * parentWidth;
+ else if (style->left_unit == Unit_AlignRight)
   left = parentWidth;
  
- if (mLook.width_unit == Unit_Pixel)
-  width = mLook.width;
+ if (style->width_unit == Unit_Pixel)
+  width = style->width;
  else
-  width = mLook.width * parentWidth;
+  width = style->width * parentWidth;
  
- if (mLook.top_unit == Unit_Pixel)
-  top = mLook.top;
- else if (mLook.top_unit == Unit_Percent)
-  top = mLook.top * parentHeight;
- else if (mLook.top_unit == Unit_AlignRight)
+ if (style->top_unit == Unit_Pixel)
+  top = style->top;
+ else if (style->top_unit == Unit_Percent)
+  top = style->top * parentHeight;
+ else if (style->top_unit == Unit_AlignRight)
   top = parentHeight;
  
 
  if (left + width > parentWidth)
  {
-  if (mLook.left_unit == Unit_AlignRight)
+  if (style->left_unit == Unit_AlignRight)
    left -= (left + width) - parentWidth;
   else
    width -= (left + width) - parentWidth;
  }
 
- if (mLook.top_unit == Unit_Pixel)
-  top = mLook.top;
- else if (mLook.top_unit == Unit_Percent)
-  top = mLook.top * parentHeight;
- else if (mLook.top_unit == Unit_AlignRight)
+ if (style->top_unit == Unit_Pixel)
+  top = style->top;
+ else if (style->top_unit == Unit_Percent)
+  top = style->top * parentHeight;
+ else if (style->top_unit == Unit_AlignRight)
   top = parentHeight;
  
- if (mLook.height_unit == Unit_Pixel)
-  height = mLook.height;
+ if (style->height_unit == Unit_Pixel)
+  height = style->height;
  else
-  height = mLook.height * parentHeight;
+  height = style->height * parentHeight;
  
  if (top + height > parentHeight)
  {
-  if (mLook.top_unit == Unit_AlignRight)
+  if (style->top_unit == Unit_AlignRight)
    top -= (top + height) - parentHeight;
   else
    height -= (top + height) - parentHeight;
  }
 
- if (mLook.left_unit == Unit_AlignCenter)
+ if (style->left_unit == Unit_AlignCenter)
  {
   left = (parentWidth * 0.5) - (width * 0.5f);
   if (left + width > parentWidth)
    width -= (left + width) - parentWidth;
  }
  
- if (mLook.top_unit == Unit_AlignCenter)
+ if (style->top_unit == Unit_AlignCenter)
  {
   top = (parentHeight * 0.5) - (height * 0.5f);
   if (top + height > parentHeight)
    height -= (top + height) - parentHeight;
  }
  
- //
  left += parentLeft;
  top += parentTop;
-
+ 
  if (mText.length() != 0)
  {
   if (mCaption == 0)
-   mCaption = mLayer->createCaption(mLook.font, top, top, mText);
-  mCaption->colour(mLook.colour);
-  mCaption->align(mLook.alignment.horz);
-  mCaption->vertical_align(mLook.alignment.vert);
+   mCaption = mLayer->createCaption(style->font, top, top, mText);
+  mCaption->colour(style->colour);
+  mCaption->align(style->alignment.horz);
+  mCaption->vertical_align(style->alignment.vert);
   mCaption->width(width);
   mCaption->height(height);
   mCaption->left(left);
   mCaption->top(top);
-  mCaption->colour(mLook.colour);
+  mCaption->colour(style->colour);
   mCaption->no_background();
-  mCaption->font(mLook.font);
+  mCaption->font(style->font);
   mCaption->text(mText);
  }
-
+ 
  if (mText.length() == 0 && mCaption != 0)
  {
   mLayer->destroyCaption(mCaption);
   mCaption = 0;
  }
  
- if (mLook.background.type != ElementStyle::Background::BT_Transparent || mLook.border.width != 0)
+ if (style->background.type != ElementStyle::Background::BT_Transparent || style->border.width != 0)
  {
   if (mRectangle == 0)
    mRectangle = mLayer->createRectangle(top, top, width, height);
   
-  if (mLook.background.type == ElementStyle::Background::BT_Colour)
-   mRectangle->background_colour(mLook.background.colour);
-  else if (mLook.background.type == ElementStyle::Background::BT_Sprite)
+  if (style->background.type == ElementStyle::Background::BT_Colour)
+   mRectangle->background_colour(style->background.colour);
+  else if (style->background.type == ElementStyle::Background::BT_Sprite)
   {
-   mRectangle->background_image(mLook.background.sprite);
+   mRectangle->background_image(style->background.sprite);
   }
   else
    mRectangle->no_background();
   
-  if (mLook.border.width == 0)
+  if (style->border.width == 0)
    mRectangle->no_border();
   else
-   mRectangle->border(mLook.border.width, mLook.border.top, mLook.border.right, mLook.border.bottom, mLook.border.left);
- 
+   mRectangle->border(style->border.width, style->border.top, style->border.right, style->border.bottom, style->border.left);
+  
   mRectangle->position(left, top);
   mRectangle->width(width);
   mRectangle->height(height);

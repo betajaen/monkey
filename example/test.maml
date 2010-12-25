@@ -1,0 +1,4 @@
+%block#message
+	.text=What is your name?
+	.coco
+	#k(listen)=Thanks
