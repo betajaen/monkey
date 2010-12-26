@@ -47,6 +47,32 @@ static const String newlines = "\r\n";
  {
   return string.find_first_of(search, start);
  }
+ 
+ size_t rindex(const String& string, char search, size_t start = 0)
+ {
+  return string.find_last_of(search, start);
+ }
+ 
+ size_t quoted_index(const String& string, char search, size_t start = 0)
+ {
+  bool inQuotes = false;
+  for (size_t i=start;i < string.length();i++)
+  {
+   
+   if (string[i] == '"' || string[i] == '\'')
+   {
+    inQuotes = !inQuotes;
+    continue;
+   }
+   
+   if (string[i] == search && inQuotes == false)
+   {
+    return (i - start);
+   }
+   
+  }
+  return std::string::npos;
+ }
 
  bool has(const String& string, char search)
  {
@@ -462,6 +488,40 @@ Ogre::ColourValue ColourFromHexString(const Ogre::String& hexString)
  return col;
 }
 
+bool args_has(const ElementArgs& args, const std::string& key)
+{
+ ElementArgs::const_iterator it = args.find(key);
+ return it != args.end();
+}
+
+std::string args_get(const ElementArgs& args, const std::string& key, const std::string& alt_value = std::string())
+{
+ ElementArgs::const_iterator it = args.find(key);
+ if (it == args.end())
+  return alt_value;
+ return (*it).second;
+}
+
+void args_dump(const ElementArgs& args)
+{
+ for (ElementArgs::const_iterator it = args.begin(); it != args.end(); it++)
+  std::cout << "['" << (*it).first << "' => '" << (*it).second << "'\n";
+}
+
+std::string maml_id_css_expand(const std::string& string)
+{
+ std::stringstream s;
+ for (size_t i=0;i < string.size();i++)
+ {
+  if (string[i] == '.' || string[i] == '#')
+   s << " ";
+  s << string[i];
+ }
+ std::string ret(s.str());
+ trim(ret);
+ return ret;
+}
+
 } // namespace SecretMonkey
 
 
@@ -493,8 +553,10 @@ PuzzleTree::PuzzleTree(const Ogre::String& css, Ogre::Viewport* viewport, Callba
   float x = style->left,
        y = style->top,
        w = style->width,
-       h = style->height;
-  float screenW = mScreen->getWidth(), screenH = mScreen->getHeight();
+       h = style->height,
+       screenW = mScreen->getWidth(),
+       screenH = mScreen->getHeight();
+  
   if (style->left_unit == Unit_Percent)
    x *= screenW;
   if (style->top_unit == Unit_Percent)
@@ -548,18 +610,24 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
  Element* previous = 0;
  Element* elem = 0;
  size_t currentIndent = 0, previousIndent = 0, parentIndent = 0;
- Ogre::String line, trimmedLine, elemID, text, attributes;
+ Ogre::String line, trimmedLine, elemID, elemData, elemAttributes;
  ElementType elemType = ElementType_Block;
- bool isListener = false;
+ 
+ ElementArgs args;
  while (!stream->eof())
  {
-  isListener = false;
   elemType = ElementType_Block;
+  elemID.clear();
+  elemData.clear();
+  elemAttributes.clear();
+  
   line = stream->getLine(false);
+  args.clear();
   trimmedLine = S::trim_copy(line);
   if (trimmedLine.length() == 0)
    continue;
   currentIndent = S::count_indent(line);
+  
   if (currentIndent == 0)
   {
    parent = 0;
@@ -579,28 +647,50 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
    }
   }
   
-  elemID = trimmedLine;
-  size_t split_pos = std::string::npos;
   
-  size_t attr_start = S::index(elemID, ')');
-  if (attr_start != std::string::npos) // There may be an attribute section.
+  // Check to see if there is an attribute data, block of characters between (..), but not before any =
+  size_t attr_start = S::index(trimmedLine, '(');
+  size_t attr_end = S::quoted_index(trimmedLine, ')', attr_start);
+  size_t data_start = 0;
+  bool hasAttributes = false, hasData = false;
+  
+  // Check to see if there is some attribute data.
+  if (attr_start != std::string::npos && attr_end != std::string::npos)
   {
-   size_t eq = S::index(elemID, '=', attr_start); // Find the value section.
-   if (eq != std::string::npos)
-    split_pos = eq;
-   else
-    split_pos = attr_start;
+   hasAttributes = true;
   }
-  else
+  
+  // Check to see if there is any element data AFTER the attribute data.
+  if (hasAttributes == true && attr_end != std::string::npos)
   {
-   size_t eq = S::index(elemID, '=');
-   if (eq != std::string::npos)
-    split_pos = eq;
+   data_start = S::index(trimmedLine, '=', attr_end);
+   if (data_start != std::string::npos)
+    hasData = true;
+  }
+  // No attributes, then check for some element data.
+  else if (hasAttributes == false)
+  {
+   data_start = S::index(trimmedLine, '=');
+   if (data_start != std::string::npos)
+    hasData = true;
+  }
+  
+  if (hasAttributes)
+   elemID = S::slice_copy(trimmedLine, 0, attr_start);
+  else if (hasData)
+   elemID = S::slice_copy(trimmedLine, 0, data_start);
+  else
+   elemID = trimmedLine;
+  
+  if (hasAttributes)
+  {
+   elemAttributes = S::slice_copy(trimmedLine, attr_start+1, attr_end-1);
   }
 
-  if (split_pos != std::string::npos)
-   S::slice(elemID,0, split_pos);
-  
+  if (hasData)
+  {
+   elemData = S::slice_copy(trimmedLine, data_start+1);
+  }
   
   if (elemID[0] == '%')
   {
@@ -621,14 +711,12 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
    }
   }
 
-  if (S::has(elemID, '('))
+  if (hasAttributes)
   {
-   attributes = elemID;
-   S::slice_to_first_of(elemID, '(');
-   S::slice_after_first_of(attributes, '(');
-   S::slice_to_last_of(attributes, ')');
-   Ogre::vector<Ogre::String>::type attrs = Ogre::StringUtil::split(attributes, ",");
+   
+   Ogre::vector<Ogre::String>::type attrs = Ogre::StringUtil::split(elemAttributes, ",");
    std::string key, value;
+   
    for (Ogre::vector<Ogre::String>::type::iterator it = attrs.begin(); it != attrs.end(); it++)
    {
     S::trim((*it));
@@ -649,34 +737,27 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
     
     S::slice_after_first_of(value, '"');
     S::slice_after_first_of(value, '\'');
-    S::slice_to_first_of(value, '"');
-    S::slice_to_first_of(value, '\'');
+    S::slice_to_last_of(value, '"');
+    S::slice_to_last_of(value, '\'');
     
-
-    if (S::matches_insensitive(key, "listen"))
-    {
-     isListener = S::matches_insensitive(value, "true");
-    }
+    args.insert(std::pair<std::string, std::string>(key, value));
    }
+   
   }
   
   if (parent)
-   elem = parent->createChild(elemID, elemType);
+   elem = parent->createChild(elemID, elemType, args);
   else
-   elem = createElement(elemID, elemType);
+   elem = createElement(elemID, elemType, args);
   
-  if (isListener)
-   elem->listen();
-  
-  if (S::has(trimmedLine, '='))
+  if (hasData)
   {
-   text = trimmedLine;
-   S::slice_after_first_of(text, '=');
-   elem->setText(text);
+   elem->setText(elemData);
   }
 
   previousIndent = currentIndent;
   previous = elem;
+
  }
 }
 
@@ -780,14 +861,13 @@ void PuzzleTree::dumpCSS()
  {
   Ogre::String css;
   (*it).second->to_css(css);
-  std::cout << (*it).first << "\n{\n" << css << "}\n";
  }
 }
 
 
-Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes, ElementType type)
+Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes, ElementType type, const ElementArgs& args)
 {
- Element* elem = new Element(css_id_or_classes, mLayers[0], this, 0, 0, type);
+ Element* elem = new Element(css_id_or_classes, mLayers[0], this, 0, 0, type, args);
  mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  return elem;
 }
@@ -1297,7 +1377,7 @@ void ElementStyle::merge(ElementStyle* other, bool isParent)
 // ----------------------------------------------------------------------------------------------------------------
 
 
-Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index, ElementType type)
+Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index, ElementType type, const ElementArgs& args)
 : mTree(tree),
   mParent(parent),
   mLayer(layer),
@@ -1307,6 +1387,8 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
   mState(ElementState_Normal),
   mType(type)
 {
+ 
+ namespace S = ::Monkey::SecretMonkey;
  
  ElementStyle* style = 0;
  
@@ -1331,8 +1413,40 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
    style->merge(&mLookNormal, false);
  }
  
- refreshLook(&mLookNormal, id_and_or_classes);
+ // Event listening.
+ if (S::args_has(args, "listen"))
+ {
+  if ( Ogre::StringConverter::parseBool(S::args_get(args, "listen", "false")) )
+  {
+   listen();
+  }
+ }
+
+
+
+ refreshLook(&mLookNormal, S::maml_id_css_expand(id_and_or_classes));
  
+ // Inline CSS.
+ if (S::args_has(args, "style"))
+ {
+  Ogre::vector<Ogre::String>::type  workings = Ogre::StringUtil::split(S::args_get(args, "style"), ";");
+  bool didCut = false;
+  S::StringPair sp;
+  for (size_t i=0;i < workings.size();i++)
+  {
+   S::trim(workings[i]);
+   if (workings[i].length() == 0)
+    continue;
+   
+   sp = S::cut(workings[i], didCut, ':', 0);
+   if (didCut)
+   {
+    S::lower(sp.first);
+    mLookNormal.from_css(sp.first, sp.second);
+   }
+  }
+ }
+
  mLookActive.reset();
  mLookNormal.merge(&mLookActive, false);
  mLookHover.reset();
@@ -1341,14 +1455,12 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
  style = mTree->getStyle("#" + mID + ":hover");
  if (style != 0)
  {
-  std::cout << "Got look for hover\n";
   style->merge(&mLookHover, false);
  }
  
  style = mTree->getStyle("#" + mID + ":active");
  if (style != 0)
  {
-  std::cout << "Got look for active\n";
   style->merge(&mLookActive, false);
  }
  
@@ -1430,12 +1542,12 @@ Element* Element::intersectionTest(int left, int top)
  return this;
 }
 
-Element* Element::createChild(const std::string& id_and_or_classes, ElementType type)
+Element* Element::createChild(const std::string& id_and_or_classes, ElementType type, const ElementArgs& args)
 {
  size_t index = mIndex + 1;
  if (index >= 14)
   index = 14;
- Element* elem = new Element(id_and_or_classes, mTree->mLayers[index], mTree, this, index, type);
+ Element* elem = new Element(id_and_or_classes, mTree->mLayers[index], mTree, this, index, type, args);
  mTree->mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  mChildren.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  return elem;

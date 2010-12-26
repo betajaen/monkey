@@ -1,4 +1,4 @@
-%block#message
-	.text=What is your name?
-	.coco
-	#k(listen)=Thanks
+#message.notice
+	.text=Coco says Hello!
+	.coco.white-border(style="width:128;height:128;")
+	#thanx(listen)=Hey!

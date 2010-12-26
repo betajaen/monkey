@@ -28,6 +28,11 @@ button
 	height: 50%;
 }
 
+.notice
+{
+	background-color: RGBA(0,255,0,30);
+}
+
 .coco
 {
 	background-image: coco;
@@ -35,6 +40,11 @@ button
 	height: 48;
 	top: middle;
 	left: 16;
+}
+
+.white-border
+{
+	border: 2 RGB(255,255,255);
 }
 
 .text
@@ -49,7 +59,7 @@ button
 	color: RGB(240, 220, 130);
 }
 
-#k
+#thanx
 {
 	font: 24;
 	left: 70%;
@@ -64,13 +74,13 @@ button
 	border-bottom: RGB(32,32,32);
 }
 
-#k:hover
+#thanx:hover
 {
 	background-color: RGB(255,255,255);
 	color: RGBA(61, 43, 31, 255);
 }
 
-#k:active
+#thanx:active
 {
 	background-color: RGB(255,255,255);
 	color: RGBA(255, 0, 0, 255);

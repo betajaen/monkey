@@ -57,6 +57,8 @@ namespace Monkey
   ElementType_TextBox,
  };
 
+ typedef std::map<std::string, std::string> ElementArgs;
+
  class Element;
  struct ElementStyle;
  class PuzzleTree;
@@ -86,7 +88,7 @@ namespace Monkey
    
   ~PuzzleTree();
    
-   Element* createElement(const Ogre::String& css_id_or_classes, ElementType);
+   Element* createElement(const Ogre::String& css_id_or_classes, ElementType, const ElementArgs& args = ElementArgs());
    
    Callback* getCallback() const { return mCallback; }
    
@@ -110,7 +112,6 @@ namespace Monkey
 
    ElementStyle* getStyle(const Ogre::String& name)
    {
-    std::cout << "Looking up style " << name << "\n";
     std::map<Ogre::String, ElementStyle*>::iterator it = mStyles.find(name);
     if (it == mStyles.end())
      return 0;
@@ -186,7 +187,7 @@ namespace Monkey
     
    public:
     
-    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index, ElementType = ElementType_Block);
+    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index, ElementType, const ElementArgs& args);
     
    ~Element();
     
@@ -200,7 +201,7 @@ namespace Monkey
      return mParent;
     }
      
-    Element* createChild(const std::string& id_and_or_classes, ElementType);
+    Element* createChild(const std::string& id_and_or_classes, ElementType, const ElementArgs& args = ElementArgs());
     
     void listen()
     {
