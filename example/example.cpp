@@ -20,6 +20,7 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
    
    mTree = new Monkey::PuzzleTree("rendezvous.monkey-css", mViewport, this);
    mTree->maml("test.maml");
+   mTree->dumpElements();
   }
   
   void onElementActivated(Monkey::Element* elem, const OIS::MouseState&)
@@ -35,6 +36,11 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
   void onElementBlur(Monkey::Element*, const OIS::MouseState&)
   {
    std::cout << "Blured\n";
+  }
+
+  void onTextboxChanged(Monkey::Element* elem)
+  {
+   std::cout << "Textbox changed to '" << elem->getText() << "'\n";
   }
   
  ~App()
@@ -59,11 +65,34 @@ class App : public Ogre::FrameListener, public OIS::KeyListener, public OIS::Mou
   
   bool keyPressed( const OIS::KeyEvent &e )
   {
+   if (e.key == OIS::KC_BACK)
+   {
+    mTree->onKeyBackspace();
+    return true;
+   }
+   
+   if (e.key == OIS::KC_RETURN || e.key == OIS::KC_NUMPADENTER)
+   {
+    mTree->onKeySubmit();
+    return true;
+   }
+   
+   if (e.key == OIS::KC_ESCAPE)
+   {
+    mTree->onKeyCancel();
+    return true;
+   }
+   
+   if (e.text < 32 || e.text > 126)
+    return true;
+   
+   mTree->onKeyPress(e.text);
    return true;
   }
   
   bool keyReleased( const OIS::KeyEvent &e )
   {
+   
    return true;
   }
   

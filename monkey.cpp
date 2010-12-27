@@ -508,6 +508,33 @@ void args_dump(const ElementArgs& args)
   std::cout << "['" << (*it).first << "' => '" << (*it).second << "'\n";
 }
 
+int extract_enum(String& string, const std::map<int, std::string>& enums, const std::string prefix = std::string())
+{
+ for (std::map<int, std::string>::const_iterator it = enums.begin(); it != enums.end(); it++)
+ {
+  std::string search = prefix + (*it).second;
+  size_t search_len = search.length();
+  bool match = false;
+  if (starts_insensitive(string, search))
+  {
+   if (string.length() == search_len)
+    match = true;
+   else if (string.length() > search_len)
+   {
+    if (string[search_len] == '.' || string[search_len] == '#' || string[search_len] == '=')
+     match = true;
+   }
+
+   if (match == true)
+   {
+    slice(string, search.length());
+    return (*it).first;
+   }
+  }
+ }
+ return -1;
+}
+
 std::string maml_id_css_expand(const std::string& string)
 {
  std::stringstream s;
@@ -522,6 +549,86 @@ std::string maml_id_css_expand(const std::string& string)
  return ret;
 }
 
+Gorilla::Rectangle* CSS_GorillaRectangle(ElementStyle* style, Gorilla::Layer* layer, Gorilla::Screen* screen)
+{
+  if (style == 0)
+   return layer->createRectangle(0,0,16,16);
+  
+  float x = style->left,
+       y = style->top,
+       w = style->width,
+       h = style->height,
+       screenW = screen->getWidth(),
+       screenH = screen->getHeight();
+  
+  if (style->left_unit == Unit_Percent)
+     x *= screenW;
+  if (style->top_unit == Unit_Percent)
+     y *= screenH;
+  if (style->width_unit == Unit_Percent)
+     w *= screenW;
+  if (style->height_unit == Unit_Percent)
+     h *= screenH;
+  
+ Gorilla::Rectangle* rect = layer->createRectangle(x,y,w,h);
+
+ if (style->background.type == ElementStyle::Background::BT_Colour)
+  rect->background_colour(style->background.colour);
+ else if (style->background.type == ElementStyle::Background::BT_Sprite)
+ {
+  rect->background_image(style->background.sprite);
+ }
+ else
+  rect->no_background();
+  
+ if (style->border.width == 0)
+  rect->no_border();
+ else
+  rect->border(style->border.width, style->border.top, style->border.right, style->border.bottom, style->border.left);
+
+ return rect;
+}
+
+Gorilla::Caption* CSS_GorillaCaption(ElementStyle* style, Gorilla::Layer* layer, Gorilla::Screen* screen)
+{
+  if (style == 0)
+   return layer->createCaption(9,0,0, "");
+  
+  float x = style->left,
+       y = style->top,
+       w = style->width,
+       h = style->height,
+       screenW = screen->getWidth(),
+       screenH = screen->getHeight();
+  
+  if (style->left_unit == Unit_Percent)
+     x *= screenW;
+  if (style->top_unit == Unit_Percent)
+     y *= screenH;
+  if (style->width_unit == Unit_Percent)
+     w *= screenW;
+  if (style->height_unit == Unit_Percent)
+     h *= screenH;
+  
+  Gorilla::Caption* cap = layer->createCaption(style->font, x,y,"");
+  cap->width(w);
+  cap->height(h);
+  cap->colour(style->colour);
+  cap->align(style->alignment.horz);
+  cap->vertical_align(style->alignment.vert);
+  
+  if (style->background.type == ElementStyle::Background::BT_Colour)
+  {
+   cap->background(style->background.colour);
+  }
+  else
+  {
+   cap->no_background();
+  }
+  
+  return cap;
+}
+
 } // namespace SecretMonkey
 
 
@@ -529,10 +636,22 @@ std::string maml_id_css_expand(const std::string& string)
 
 
 PuzzleTree::PuzzleTree(const Ogre::String& css, Ogre::Viewport* viewport, Callback* callback)
-: mViewport(viewport), mCallback(callback), mLastEventElement(0)
+: mViewport(viewport),
+  mCallback(callback),
+  mLastEventElement(0),
+  mCurrentTextElement(0)
 {
  
  loadCSS(css);
+ 
+ mElementTypes[ElementType_Block] = "block";
+ mElementTypes[ElementType_Button] = "button";
+ mElementTypes[ElementType_TextBox] = "textbox";
+ mElementTypes[ElementType_OSKContainer] = "osk";
+ mElementTypes[ElementType_OSKTitle] = "osk-title";
+ mElementTypes[ElementType_OSKInput] = "osk-input";
+ mElementTypes[ElementType_OSKSubmit] = "osk-submit";
+ mElementTypes[ElementType_OSKCancel] = "osk-cancel";
  
  mSilverback = Gorilla::Silverback::getSingletonPtr();
  
@@ -584,6 +703,8 @@ PuzzleTree::PuzzleTree(const Ogre::String& css, Ogre::Viewport* viewport, Callba
   
  }
  
+ maml("required.maml");
+ mSingletonElements[ElementType_OSKContainer]->hide();
 }
 
 PuzzleTree::~PuzzleTree()
@@ -611,7 +732,7 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
  Element* elem = 0;
  size_t currentIndent = 0, previousIndent = 0, parentIndent = 0;
  Ogre::String line, trimmedLine, elemID, elemData, elemAttributes;
- ElementType elemType = ElementType_Block;
+ int elemType = ElementType_Block;
  
  ElementArgs args;
  while (!stream->eof())
@@ -694,21 +815,7 @@ void PuzzleTree::maml(const Ogre::String& maml_path)
   
   if (elemID[0] == '%')
   {
-   if (S::starts_insensitive(elemID, "%block"))
-   {
-    elemType = ElementType_Block;
-    S::slice(elemID, 6); // %block == 6
-   }
-   else if (S::starts_insensitive(elemID, "%button"))
-   {
-    elemType = ElementType_Button;
-    S::slice(elemID, 7); // %button == 6
-   }
-   else if (S::starts_insensitive(elemID, "%textbox"))
-   {
-    elemType = ElementType_TextBox;
-    S::slice(elemID, 8); // %textbox == 6
-   }
+   elemType = S::extract_enum(elemID, mElementTypes, "%");
   }
 
   if (hasAttributes)
@@ -865,9 +972,17 @@ void PuzzleTree::dumpCSS()
 }
 
 
-Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes, ElementType type, const ElementArgs& args)
+Element* PuzzleTree::createElement(const Ogre::String& css_id_or_classes, int type, const ElementArgs& args)
 {
- Element* elem = new Element(css_id_or_classes, mLayers[0], this, 0, 0, type, args);
+ Gorilla::Layer* layer = 0;
+ size_t index = 0;
+ 
+ if (type == ElementType_OSKContainer)
+  index = 13;
+ else
+  index = 0;
+ 
+ Element* elem = new Element(css_id_or_classes, mLayers[index], this, 0, index, type, args);
  mElements.insert(std::pair<Ogre::String, Element*>(elem->getID(), elem));
  return elem;
 }
@@ -885,10 +1000,11 @@ void PuzzleTree::dumpElements()
 void PuzzleTree::_checkMouse(const OIS::MouseEvent &arg, OIS::MouseButtonID id, int ois_event, ElementState state)
 {
  
+ 
  Ogre::Vector2 coords(arg.state.X.abs, arg.state.Y.abs);
  
  mMousePointer->position(coords);
-
+ 
  Element* elem = 0;
  for (std::vector<Element*>::iterator it = mMouseListenerElements.begin(); it != mMouseListenerElements.end(); it++)
  {
@@ -896,6 +1012,11 @@ void PuzzleTree::_checkMouse(const OIS::MouseEvent &arg, OIS::MouseButtonID id, 
   
   if (elem != 0)
   {
+    
+    if (mCurrentTextElement != 0)
+     if (elem->getType() < ElementType_OSK_BEGIN || elem->getType() > ElementType_OSK_END)
+      continue;
+    
     if (elem->getState() != state)
     {
      if (mLastEventElement)
@@ -903,7 +1024,26 @@ void PuzzleTree::_checkMouse(const OIS::MouseEvent &arg, OIS::MouseButtonID id, 
      elem->setState(state);
      mLastEventElement = elem;
      if (ois_event == 2)
-      mCallback->onElementActivated(mLastEventElement, arg.state);
+     {
+      if (elem->getType() == ElementType_TextBox)
+      {
+       beginTextMode(elem);
+      }
+      else if (elem->getType() == ElementType_OSKSubmit)
+      {
+       onKeySubmit();
+       return;
+      }
+      else if (elem->getType() == ElementType_OSKCancel)
+      {
+       onKeyCancel();
+       return;
+      }
+      else
+      {
+       mCallback->onElementActivated(mLastEventElement, arg.state);
+      }
+     }
      else if (ois_event == 0)
       mCallback->onElementFocused(mLastEventElement, arg.state);
     }
@@ -938,6 +1078,61 @@ void PuzzleTree::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID i
  _checkMouse(arg, id, 2, ElementState_Hover);
 }
 
+void PuzzleTree::onKeyPress(char character)
+{
+ if (mCurrentTextElement == 0)
+  return;
+ mCurrentTextString.push_back(character);
+ mSingletonElements[ElementType_OSKInput]->setText(mCurrentTextString + "|");
+}
+
+void PuzzleTree::onKeyBackspace()
+{
+ if (mCurrentTextElement == 0)
+  return;
+ if (mCurrentTextString.length())
+  mCurrentTextString.pop_back();
+ mSingletonElements[ElementType_OSKInput]->setText(mCurrentTextString + "|");
+}
+
+void PuzzleTree::beginTextMode(Element* element)
+{
+ namespace S = ::Monkey::SecretMonkey;
+ 
+ endTextMode();
+ mCurrentTextElement = element;
+ mCurrentTextString = mCurrentTextElement->getText();
+ mSingletonElements[ElementType_OSKTitle]->setText(mCurrentTextElement->getTitle());
+ mSingletonElements[ElementType_OSKInput]->setText(mCurrentTextElement->getText() + "|");
+ mSingletonElements[ElementType_OSKContainer]->show();
+}
+
+void PuzzleTree::onKeySubmit()
+{
+ endTextMode();
+}
+
+void PuzzleTree::onKeyCancel()
+{
+ if (mCurrentTextElement)
+ {
+  mSingletonElements[ElementType_OSKContainer]->hide();
+  mCurrentTextElement = 0;
+ }
+}
+
+void PuzzleTree::endTextMode()
+{
+ 
+ if (mCurrentTextElement)
+ {
+  mCurrentTextElement->setText(mCurrentTextString);
+  mSingletonElements[ElementType_OSKContainer]->hide();
+  mCallback->onTextboxChanged(mCurrentTextElement);
+  mCurrentTextElement = 0;
+ }
+ 
+}
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -1377,7 +1572,7 @@ void ElementStyle::merge(ElementStyle* other, bool isParent)
 // ----------------------------------------------------------------------------------------------------------------
 
 
-Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index, ElementType type, const ElementArgs& args)
+Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, PuzzleTree* tree, Element* parent, size_t index, int type, const ElementArgs& args)
 : mTree(tree),
   mParent(parent),
   mLayer(layer),
@@ -1385,36 +1580,26 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
   mCaption(0),
   mIndex(index),
   mState(ElementState_Normal),
-  mType(type)
+  mType(type),
+  mIsVisible(true)
 {
  
  namespace S = ::Monkey::SecretMonkey;
  
- ElementStyle* style = 0;
- 
  mLookNormal.reset();
- 
- if (mType == ElementType_Button)
+ std::string str_type = mTree->getElementType(mType);
+ // Merge styles from known type.
+ if (mType != -1)
  {
-  style = mTree->getStyle("button");
-  if (style != 0)
-   style->merge(&mLookNormal, false);
+  merge_style(str_type, &mLookNormal, false);
  }
- else if (mType == ElementType_TextBox)
+
+ // Auto subscribe events if buttons, textboxes or OSK elements.
+ if (mType == ElementType_Button || mType == ElementType_TextBox || mType == ElementType_OSKSubmit || mType == ElementType_OSKCancel)
  {
-  style = mTree->getStyle("textbox");
-  if (style != 0)
-   style->merge(&mLookNormal, false);
+  listen();
  }
- else if (mType == ElementType_Block)
- {
-  style = mTree->getStyle("block");
-  if (style != 0)
-   style->merge(&mLookNormal, false);
- }
- 
- // Event listening.
- if (S::args_has(args, "listen"))
+ else if (S::args_has(args, "listen"))
  {
   if ( Ogre::StringConverter::parseBool(S::args_get(args, "listen", "false")) )
   {
@@ -1423,7 +1608,18 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
  }
 
 
-
+ // Make this element a singleton if a OSK element.
+ if (mType > ElementType_OSK_BEGIN && mType < ElementType_OSK_END)
+ {
+  mTree->mSingletonElements[mType] = this;
+ }
+ 
+ // Title.
+ if (S::args_has(args, "title"))
+ {
+  mTitle = S::args_get(args, "title");
+ }
+ 
  refreshLook(&mLookNormal, S::maml_id_css_expand(id_and_or_classes));
  
  // Inline CSS.
@@ -1446,23 +1642,19 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
    }
   }
  }
-
+ 
  mLookActive.reset();
  mLookNormal.merge(&mLookActive, false);
  mLookHover.reset();
  mLookNormal.merge(&mLookHover, false);
-
- style = mTree->getStyle("#" + mID + ":hover");
- if (style != 0)
- {
-  style->merge(&mLookHover, false);
- }
  
- style = mTree->getStyle("#" + mID + ":active");
- if (style != 0)
- {
-  style->merge(&mLookActive, false);
- }
+ merge_style(str_type + ":hover", &mLookHover, false);
+ if (mID.length())
+  merge_style("#" + mID + ":hover", &mLookHover, false);
+ 
+ merge_style(str_type + ":active", &mLookActive, false);
+ if (mID.length())
+  merge_style("#" + mID + ":active", &mLookActive, false);
  
  reapplyLook();
  
@@ -1471,6 +1663,18 @@ Element::Element(const std::string& id_and_or_classes, Gorilla::Layer* layer, Pu
 Element::~Element()
 {
  // TODO
+}
+
+void Element::merge_style(const std::string& name, ElementStyle* style, bool isParent)
+{
+ if (style == 0)
+  return;
+ if (name.length() == 0)
+  return;
+ ElementStyle* a = 0;
+ a = mTree->getStyle(name);
+ if (a)
+  a->merge(style, isParent);
 }
 
 void Element::refreshLook(ElementStyle* look, const Ogre::String& id_and_or_classes)
@@ -1517,7 +1721,8 @@ void Element::debug(size_t index)
 {
  for (size_t i=0;i < index;i++)
   std::cout << " ";
- std::cout << mID << "(R:" << mRectangle << ",C:" << mCaption << ")\n";
+  
+ std::cout << "+ " << mID << "," << mIndex << "," << mTree->getElementType(mType) << ")\n";
  for (std::multimap<Ogre::String, Element*>::iterator it = mChildren.begin(); it != mChildren.end(); it++)
   (*it).second->debug(index + 1);
 }
@@ -1542,7 +1747,7 @@ Element* Element::intersectionTest(int left, int top)
  return this;
 }
 
-Element* Element::createChild(const std::string& id_and_or_classes, ElementType type, const ElementArgs& args)
+Element* Element::createChild(const std::string& id_and_or_classes, int type, const ElementArgs& args)
 {
  size_t index = mIndex + 1;
  if (index >= 14)
@@ -1556,6 +1761,21 @@ Element* Element::createChild(const std::string& id_and_or_classes, ElementType 
 void Element::reapplyLook()
 {
  
+ if (mIsVisible == false)
+ {
+  if (mRectangle)
+  {
+   mLayer->destroyRectangle(mRectangle);
+   mRectangle = 0;
+  }
+  if (mCaption)
+  {
+   mLayer->destroyCaption(mCaption);
+   mCaption = 0;
+  }
+  return;
+ }
+
  float left = 0, top = 0, width = 0, height = 0, parentWidth = 0, parentHeight = 0, parentLeft = 0, parentTop = 0;
  
  ElementStyle* style = 0;

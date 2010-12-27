@@ -1,4 +1,5 @@
-#message.notice
-	.text=Coco says Hello!
+%block#message
+	.ask=What's your name?
+	%textbox.name(title="Your name is?")=Snuggles the Brave
 	.coco.white-border(style="width:128;height:128;")
-	#thanx(listen)=Hey!
+	%button#okay=Okay

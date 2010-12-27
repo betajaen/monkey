@@ -55,6 +55,13 @@ namespace Monkey
   ElementType_Block,
   ElementType_Button,
   ElementType_TextBox,
+  ElementType_OSK_BEGIN,
+  ElementType_OSKContainer,
+  ElementType_OSKTitle,
+  ElementType_OSKInput,
+  ElementType_OSKSubmit,
+  ElementType_OSKCancel,
+  ElementType_OSK_END
  };
 
  typedef std::map<std::string, std::string> ElementArgs;
@@ -72,6 +79,8 @@ namespace Monkey
    virtual void onElementFocused(Monkey::Element*, const OIS::MouseState&) {}
    // Mouse not moving, mouse clicked once.
    virtual void onElementBlur(Monkey::Element*, const OIS::MouseState&) {}
+   // An element text has changed.
+   virtual void onTextboxChanged(Monkey::Element*) {}
    
  };
  
@@ -88,7 +97,7 @@ namespace Monkey
    
   ~PuzzleTree();
    
-   Element* createElement(const Ogre::String& css_id_or_classes, ElementType, const ElementArgs& args = ElementArgs());
+   Element* createElement(const Ogre::String& css_id_or_classes, int type, const ElementArgs& args = ElementArgs());
    
    Callback* getCallback() const { return mCallback; }
    
@@ -101,6 +110,14 @@ namespace Monkey
    void mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
    
    void mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
+   
+   void onKeyPress(char character);
+
+   void onKeyBackspace();
+   
+   void onKeySubmit();
+   
+   void onKeyCancel();
    
    Gorilla::Silverback*  getSilverback() const { return mSilverback; }
 
@@ -115,6 +132,18 @@ namespace Monkey
     std::map<Ogre::String, ElementStyle*>::iterator it = mStyles.find(name);
     if (it == mStyles.end())
      return 0;
+    return (*it).second;
+   }
+   
+   void beginTextMode(Element*);
+   
+   void endTextMode();
+   
+   std::string getElementType(int id) const
+   {
+    std::map<int, std::string>::const_iterator it = mElementTypes.find(id);
+    if (it == mElementTypes.end())
+     return std::string();
     return (*it).second;
    }
    
@@ -134,8 +163,12 @@ namespace Monkey
    Gorilla::Rectangle*                        mMousePointer;
    Callback*                                  mCallback;
    Element*                                   mLastEventElement;
- };
- 
+   Element*                                   mCurrentTextElement;
+   std::string                                mCurrentTextString;
+   std::map<int, std::string>                 mElementTypes;
+   std::map<int, Element*>                    mSingletonElements;
+  };
+  
   struct ElementStyle
   {
    struct Background
@@ -187,10 +220,31 @@ namespace Monkey
     
    public:
     
-    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index, ElementType, const ElementArgs& args);
+    Element(const std::string& id_and_or_classes, Gorilla::Layer*, PuzzleTree*, Element*, size_t index, int type, const ElementArgs& args);
     
    ~Element();
     
+    void hide()
+    {
+     mIsVisible = false;
+     for (std::multimap<Ogre::String, Element*>::iterator it = mChildren.begin(); it != mChildren.end(); it++)
+      (*it).second->hide();
+     reapplyLook();
+    }
+
+    void show()
+    {
+     mIsVisible = true;
+     for (std::multimap<Ogre::String, Element*>::iterator it = mChildren.begin(); it != mChildren.end(); it++)
+      (*it).second->show();
+     reapplyLook();
+    }
+
+    bool isVisible() const
+    {
+     return mIsVisible;
+    }
+
     bool hasParent() const
     {
      return mParent != 0;
@@ -201,7 +255,7 @@ namespace Monkey
      return mParent;
     }
      
-    Element* createChild(const std::string& id_and_or_classes, ElementType, const ElementArgs& args = ElementArgs());
+    Element* createChild(const std::string& id_and_or_classes, int type, const ElementArgs& args = ElementArgs());
     
     void listen()
     {
@@ -222,6 +276,11 @@ namespace Monkey
     ElementState getState() const
     {
      return mState;
+    }
+
+    int getType() const
+    {
+     return mType;
     }
 
     void debug(size_t index = 0);
@@ -268,6 +327,8 @@ namespace Monkey
      return 0;
     }
     
+    Ogre::String getTitle() const { return mTitle; }
+
     Ogre::String getText() const { return mText; }
     
     ElementStyle* getNormalStyle() { return &mLookNormal; }
@@ -279,10 +340,12 @@ namespace Monkey
     void reapplyLook();
     
     void refreshLook(ElementStyle*, const Ogre::String& id_and_or_classes);
+    
+   void merge_style(const std::string& name, ElementStyle*, bool isParent);
 
    protected:
     
-    ElementType                                mType;
+    int                                        mType;
     PuzzleTree*                                mTree;
     Element*                                   mParent;
     std::multimap<Ogre::String, Element*>      mChildren;
@@ -295,7 +358,8 @@ namespace Monkey
     Ogre::String                               mText;
     Gorilla::Layer*                            mLayer;
     size_t                                     mIndex;
-    
+    Ogre::String                               mTitle;
+    bool                                       mIsVisible;
   };
   
 }

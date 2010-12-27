@@ -1,0 +1,5 @@
+%osk
+	%osk-title=A title
+	%osk-input=Some text
+	%osk-submit=Submit
+	%osk-cancel=Cancel
